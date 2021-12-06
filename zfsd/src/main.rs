@@ -2,11 +2,11 @@ use async_std::fs::{create_dir_all, OpenOptions};
 use clap::{App, Arg};
 use futures::prelude::*;
 use notify::{DebouncedEvent, RecursiveMode, Watcher};
-use std::path::{Path, PathBuf};
-use std::{sync::mpsc::channel, time::Duration};
+use std::path::PathBuf;
+use std::{sync::mpsc::channel, sync::Arc, time::Duration};
 use zenoh::net::*;
 use zenoh::Properties;
-use indicatif::ProgressBar;
+use indicatif::{ProgressBar, ProgressStyle};
 
 
 const EVT_DELAY: u64 = 1;
@@ -80,8 +80,8 @@ async fn upload_fragment(z: &Session, path: &str, key: &str) {
     z.write(&key.into(), bs.into()).await.unwrap();
 }
 
-async fn download(z: std::sync::Arc<Session>, path: &Path) -> Result<(), String> {
-    let bs = std::fs::read(path).unwrap();
+async fn download(z: std::sync::Arc<Session>, path: Arc<PathBuf>, pstyle: ProgressStyle) -> Result<(), String> {
+    let bs = std::fs::read(path.as_path()).unwrap();
     let download_spec = match serde_json::from_slice::<zfs::DownloadDigest>(&bs) {
         Ok(ds) => ds,
         Err(e) => return Err(format!("{:?}", e)),
@@ -110,9 +110,10 @@ async fn download(z: std::sync::Arc<Session>, path: &Path) -> Result<(), String>
         .unwrap();
     if let Some(reply) = replies.next().await {
         let bs = reply.data.payload.contiguous();
-        let digest = serde_json::from_slice::<zfs::FragmentationDigest>(&bs).unwrap();
-        let bar = ProgressBar::new(digest.fragments.into());
-        println!("[+] Downloading {}", &download_spec.key);
+        let digest = serde_json::from_slice::<zfs::FragmentationDigest>(&bs).unwrap();                
+        let bar = ProgressBar::new(digest.fragments.into());   
+        bar.set_style(pstyle);     
+        bar.set_message(download_spec.key.clone());                
         for i in 0..digest.fragments {
             let path = format!("{}/{}", download_spec.key, i);
             log::debug!(target: "zfsd", "Retrieving fragment: {}", &path);
@@ -151,14 +152,18 @@ async fn main() {
     let (path, zconf) = parse_args();
 
     let z = std::sync::Arc::new(open(zconf.into()).await.unwrap());
-    let _ = init(&path).await.unwrap();
+    init(&path).await.unwrap();
     let (tx, rx) = channel();
     let mut watcher = notify::watcher(tx, Duration::from_secs(EVT_DELAY)).unwrap();
     let fragment_size = FRAGMENT_SIZE;
-    let _ = watcher.watch(&path, RecursiveMode::Recursive);
+    watcher.watch(&path, RecursiveMode::Recursive).unwrap();
     let mut frags_dir = PathBuf::from(path);
     frags_dir.push(UPLOAD_SUBDIR);
     frags_dir.push(FRAGS_SUBDIR);
+    
+    let sty = ProgressStyle::default_bar()
+        .template("[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}")
+        .progress_chars("##-");
 
     println!("zfsd is up an running.");
     while let Ok(evt) = rx.recv() {
@@ -167,8 +172,11 @@ async fn main() {
                 let parent = path.parent().unwrap();
 
                 if parent.ends_with(DOWNLOAD_SUBDIR) {
-                    log::info!(target: "zfsd", "Downloading {:?}", &path);
-                    match download(z.clone(), path.as_path()).await {
+                    log::info!(target: "zfsd", "Downloading {:?}", &path);                                            
+                    // Note: The only reason for not spawning an async task is that the
+                    // indicatif crate does not work properly show progress when using multibar
+                    // along with async tasks.
+                    match download(z.clone(), Arc::new(path.clone()), sty.clone()).await {
                         Ok(()) => {}
                         Err(e) => {
                             log::warn!("Failed to download due to: {:?}", e);
@@ -177,7 +185,7 @@ async fn main() {
                 } else if parent.ends_with(UPLOAD_SUBDIR) {
                     log::info!(target: "zfsd","Fragmenting {:?}", &path);
                     let p = path.to_str().unwrap().to_string();
-                    let _ = async_std::task::spawn(fragment(p, fragment_size));
+                    let _ignore = async_std::task::spawn(fragment(p, fragment_size));
                 } else {
                     let fpath = path.to_str().unwrap();
                     match fpath.find(FRAGS_SUBDIR) {
@@ -188,7 +196,7 @@ async fn main() {
                             log::debug!(target: "zfsd", "Completed  upload of: {:?} as {:?}", path, key);
                         }
                         None => {
-                            log::warn!(target: "zfsd", "Ignoring {:?} path...", &path)
+                            log::warn!(target: "zfsd", "Ignoring {:?} path...", &path);
                         }
                     }
                 }

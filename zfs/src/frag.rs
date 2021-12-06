@@ -20,7 +20,7 @@ pub async fn fragment(
                 Err(_) => return Err(format!("Unable to open the file {}", file_path)),
             };
             // let mut bs = Vec::<u8>::with_capacity(fragment_size);
-            let mut bs = vec![0u8; fragment_size];
+            let mut bs = vec![0_u8; fragment_size];
             // for _ in 0..fragment_size {
             //     bs.push(0);
             // }
@@ -49,7 +49,7 @@ pub async fn fragment(
                                 panic!("IO Error")
                             }
                         };
-                        let _ = f.write(&bs[0..n]).await;
+                        let _ignore = f.write(&bs[0..n]).await;
                         fid += 1;
                     }
                     _ => break,
