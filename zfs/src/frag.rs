@@ -24,7 +24,7 @@ pub async fn fragment(
             // for _ in 0..fragment_size {
             //     bs.push(0);
             // }
-            println!("bs.len() = {}", bs.len());
+            log::debug!("bs.len() = {}", bs.len());
             let mut fid = 0;
 
             let k = Path::new(zkey);
@@ -34,7 +34,7 @@ pub async fn fragment(
             ]
             .iter()
             .collect();
-            println!("Target dir: {:?}", target);
+            log::debug!("Target dir: {:?}", target);
             create_dir_all(target.as_path()).await.unwrap();
             loop {
                 match file.read(&mut bs).await {
@@ -45,7 +45,7 @@ pub async fn fragment(
                         let mut f = match File::create(fname).await {
                             Ok(f) => f,
                             Err(e) => {
-                                println!("Error {:?} while creating the fragment: {}", e, fname);
+                                log::debug!("Error {:?} while creating the fragment: {}", e, fname);
                                 panic!("IO Error")
                             }
                         };
@@ -66,7 +66,7 @@ pub async fn fragment(
             target.push(crate::ZFS_DIGEST);
             let mut fdigest = File::create(target.as_path()).await.unwrap();
             fdigest.write(&bs).await.unwrap();
-            println!("{:?}", digest);
+            log::debug!("{:?}", digest);
             Ok(digest)
         }
         Err(e) => Err(e.into()),
