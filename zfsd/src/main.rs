@@ -7,19 +7,15 @@ use std::{sync::mpsc::channel, sync::Arc, time::Duration};
 use zenoh::net::*;
 use zenoh::Properties;
 use indicatif::{ProgressBar, ProgressStyle};
+use zfs::*;
 
-
-const EVT_DELAY: u64 = 1;
-const DOWNLOAD_SUBDIR: &str = "download";
-const UPLOAD_SUBDIR: &str = "upload";
-const FRAGS_SUBDIR: &str = "frags";
-const FRAGMENT_SIZE: usize = 4 * 1024;
 
 fn parse_args() -> (String, Properties) {
+    let default_home = format!("{}/{}", std::env::var("HOME").unwrap(), ".zfs");
     let args = App::new("zenoh distributed file sytem")
         .arg(
             Arg::from_usage("-p, --path=[PATH] 'The working directory for zfd")  
-            .default_value("/~/.zfs/")              
+            .default_value(&default_home)
         )
         .arg(Arg::from_usage(
             "-s, --fragment-size=[size]...  'The maximun size used for fragmenting for files.'",

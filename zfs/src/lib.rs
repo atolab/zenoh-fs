@@ -1,7 +1,12 @@
 use serde::{Deserialize, Serialize};
 
 pub static ZFS_DIGEST: &str = "zfs-digest";
-pub static FRAGMENT_SIZE: usize = 1024;
+pub const EVT_DELAY: u64 = 1;
+pub const DOWNLOAD_SUBDIR: &str = "download";
+pub const UPLOAD_SUBDIR: &str = "upload";
+pub const FRAGS_SUBDIR: &str = "frags";
+pub const FRAGMENT_SIZE: usize = 4 * 1024;
+
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FragmentationDigest {
