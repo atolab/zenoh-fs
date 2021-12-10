@@ -24,8 +24,11 @@ pub async fn download(
     };
 
     if std::path::Path::new(&download_spec.path).exists() {
-        println!("The file {} has already been downloaded.", &download_spec.path);
-        return Ok(())
+        println!(
+            "The file {} has already been downloaded.",
+            &download_spec.path
+        );
+        return Ok(());
     }
 
     let manifest = format!("{}/{}", download_spec.key, crate::ZFS_DIGEST);
@@ -43,12 +46,17 @@ pub async fn download(
         .await
         .unwrap();
     let temp = format!("{}-zfs-temp", download_spec.path);
-    let mut ftemp = OpenOptions::new()
+
+    let mut ftemp = match OpenOptions::new()
         .append(true)
         .create(true)
         .open(&temp)
         .await
-        .unwrap();
+    {
+        Ok(f) => f,
+        Err(e) => return Err(format!("{:?}", e)),
+    };
+
     if let Some(reply) = replies.next().await {
         let bs = reply.data.payload.contiguous();
         let digest = serde_json::from_slice::<crate::FragmentationDigest>(&bs).unwrap();
@@ -82,6 +90,8 @@ pub async fn download(
         async_std::fs::rename(&temp, &download_spec.path)
             .await
             .unwrap();
+    } else {
+        println!("The file {} is not available on zfs", download_spec.key);
     }
     Ok(())
 }

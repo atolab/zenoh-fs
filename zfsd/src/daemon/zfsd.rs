@@ -2,7 +2,7 @@ use async_std::fs::create_dir_all;
 use clap::{App, Arg};
 use indicatif::ProgressStyle;
 use notify::{DebouncedEvent, RecursiveMode, Watcher};
-use std::path::{PathBuf};
+use std::path::PathBuf;
 use std::{sync::mpsc::channel, sync::Arc, time::Duration};
 use zenoh::net::*;
 use zenoh::Properties;
@@ -85,7 +85,7 @@ async fn main() {
                     let p = path.to_str().unwrap().to_string();
                     let _ignore =
                         async_std::task::spawn(zfs::fragment_from_digest(p, fragment_size));
-
+                    println!("Fragmenting and uploading {:?}", path.as_path());
                 } else {
                     let fpath = path.to_str().unwrap();
                     match fpath.find(FRAGS_SUBDIR) {
