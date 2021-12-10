@@ -33,3 +33,11 @@ mod transfer;
 
 pub use frag::*;
 pub use transfer::*;
+
+pub fn zfs_home() -> String {
+    if let Ok(zfs_home) = std::env::var("ZFS_HOME") {
+        zfs_home
+    } else {
+        format!("{}/{}", std::env::var("HOME").unwrap(), ".zfs")
+    }
+}

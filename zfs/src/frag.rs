@@ -89,6 +89,7 @@ pub async fn fragment_from_digest(path: String, fragment_size: usize) -> Result<
     )
     .await
     .unwrap();
+    // let _ignore = std::fs::remove_file(&std::path::Path::new(&path));
     Ok(())
 }
 

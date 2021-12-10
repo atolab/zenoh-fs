@@ -3,7 +3,17 @@ name = "zfsd"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[[bin]]
+name = "zfsd"
+path = "src/daemon/zfsd.rs"
+
+[[bin]]
+name = "zut"
+path = "src/client/zut.rs"
+[[bin]]
+name = "zet"
+path = "src/client/zet.rs"
+
 
 [dependencies]
 
@@ -20,5 +30,5 @@ notify = "4.0.17"
 futures = "0.3.12"
 env_logger ="0.9.0"
 indicatif = "0.16.2"
-
+uuid = "0.8.2"
 

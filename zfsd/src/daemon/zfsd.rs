@@ -2,19 +2,14 @@ use async_std::fs::create_dir_all;
 use clap::{App, Arg};
 use indicatif::ProgressStyle;
 use notify::{DebouncedEvent, RecursiveMode, Watcher};
-use std::path::PathBuf;
+use std::path::{PathBuf};
 use std::{sync::mpsc::channel, sync::Arc, time::Duration};
 use zenoh::net::*;
 use zenoh::Properties;
 use zfs::*;
 
-fn parse_args() -> (String, Properties) {
-    let default_home = format!("{}/{}", std::env::var("HOME").unwrap(), ".zfs");
+fn parse_args() -> Properties {
     let args = App::new("zenoh distributed file sytem")
-        .arg(
-            Arg::from_usage("-p, --path=[PATH] 'The working directory for zfd")  
-            .default_value(&default_home)
-        )
         .arg(Arg::from_usage(
             "-s, --fragment-size=[size]...  'The maximun size used for fragmenting for files.'",
         ))
@@ -31,9 +26,7 @@ fn parse_args() -> (String, Properties) {
         );
     }
 
-    let path = args.value_of("path").unwrap().to_string();
-
-    (path, config)
+    config
 }
 
 async fn init(path: &str) -> Result<(), String> {
@@ -51,7 +44,8 @@ async fn init(path: &str) -> Result<(), String> {
 async fn main() {
     println!("Starting zfsd...");
     env_logger::init();
-    let (path, zconf) = parse_args();
+    let path = zfs_home();
+    let zconf = parse_args();
 
     let z = std::sync::Arc::new(open(zconf.into()).await.unwrap());
     init(&path).await.unwrap();
@@ -85,11 +79,13 @@ async fn main() {
                             log::warn!("Failed to download due to: {:?}", e);
                         }
                     }
+                    // std::fs::remove_file(path.as_path()).unwrap();
                 } else if parent.ends_with(UPLOAD_SUBDIR) {
                     log::info!(target: "zfsd","Fragmenting {:?}", &path);
                     let p = path.to_str().unwrap().to_string();
                     let _ignore =
                         async_std::task::spawn(zfs::fragment_from_digest(p, fragment_size));
+
                 } else {
                     let fpath = path.to_str().unwrap();
                     match fpath.find(FRAGS_SUBDIR) {

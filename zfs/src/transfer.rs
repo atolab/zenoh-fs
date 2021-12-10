@@ -23,6 +23,11 @@ pub async fn download(
         Err(e) => return Err(format!("{:?}", e)),
     };
 
+    if std::path::Path::new(&download_spec.path).exists() {
+        println!("The file {} has already been downloaded.", &download_spec.path);
+        return Ok(())
+    }
+
     let manifest = format!("{}/{}", download_spec.key, crate::ZFS_DIGEST);
     log::debug!(target: "zfsd", "Retrieving manifest: {}", &manifest);
     let mut replies = z
