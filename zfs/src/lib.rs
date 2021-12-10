@@ -7,7 +7,6 @@ pub const UPLOAD_SUBDIR: &str = "upload";
 pub const FRAGS_SUBDIR: &str = "frags";
 pub const FRAGMENT_SIZE: usize = 4 * 1024;
 
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FragmentationDigest {
     pub name: String,
@@ -29,4 +28,8 @@ pub struct DownloadDigest {
     pub pace: u32,
 }
 
-pub mod frag;
+mod frag;
+mod transfer;
+
+pub use frag::*;
+pub use transfer::*;
