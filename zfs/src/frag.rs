@@ -1,9 +1,6 @@
 use async_std::fs::{create_dir_all, File};
 use async_std::prelude::*;
-// use std::io::Read;
-// use std::io::Write;
 use checksum::crc::Crc;
-use serde_json;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -72,6 +69,29 @@ pub async fn fragment(
         Err(e) => Err(e.into()),
     }
 }
+
+pub async fn fragment_from_digest(path: String, fragment_size: usize) -> Result<(), String> {
+    let path = PathBuf::from(path);
+    let mut target = PathBuf::from(path.parent().unwrap());
+    target.push(crate::FRAGS_SUBDIR);
+
+    let bs = std::fs::read(path.as_path()).unwrap();
+    let upload_spec = match serde_json::from_slice::<crate::UploadDigest>(&bs) {
+        Ok(us) => us,
+        Err(e) => return Err(format!("{:?}", e)),
+    };
+    log::debug!(target: "zfsd", "Uploading: {} as {}", &upload_spec.path, &upload_spec.key);
+    crate::frag::fragment(
+        &upload_spec.path,
+        target.to_str().unwrap(),
+        &upload_spec.key,
+        fragment_size,
+    )
+    .await
+    .unwrap();
+    Ok(())
+}
+
 pub async fn defragment(fragments_path: &str, dest_path: &str) -> bool {
     let path: PathBuf = [fragments_path, crate::ZFS_DIGEST].iter().collect();
     let bs = std::fs::read(path.as_path()).unwrap();
