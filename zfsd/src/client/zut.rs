@@ -1,15 +1,10 @@
 use clap::{App, Arg};
-use zfs::UploadDigest;
+use zfs::{UploadDigest, zfs_upload_digest_dir};
 
 fn write_upload_digest(digest: UploadDigest) -> std::io::Result<()> {
     let uid = uuid::Uuid::new_v4();
+    let fname = format!("{}/{}", zfs_upload_digest_dir(), uid.to_string());
     if let Ok(bs) = serde_json::to_vec(&digest) {
-        let fname = format!(
-            "{}/{}/{}",
-            zfs::zfs_home(),
-            zfs::UPLOAD_SUBDIR,
-            uid.to_string()
-        );
         std::fs::write(&fname, &bs)?;
     }
     Ok(())
@@ -36,8 +31,12 @@ fn parse_args() -> (String, String) {
 }
 fn main() {
     let (path, key) = parse_args();
-    let digest = UploadDigest { path, key };
-    write_upload_digest(digest).unwrap();
+    if std::path::Path::new(&path).exists() {
+        let digest = UploadDigest { path, key };
+        write_upload_digest(digest).unwrap();
+    } else {
+        println!("The file {} does not exit", &path);
+    }
 }
 
 // fn old_main() {

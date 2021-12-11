@@ -1,16 +1,10 @@
 use clap::{App, Arg};
-use zfs::DownloadDigest;
+use zfs::{DownloadDigest, zfs_download_digest_dir};
 
 fn write_download_digest(digest: DownloadDigest) -> std::io::Result<()> {
     let uid = uuid::Uuid::new_v4();
+    let fname = format!("{}/{}", zfs_download_digest_dir(), uid.to_string());
     if let Ok(bs) = serde_json::to_vec(&digest) {
-        let fname = format!(
-            "{}/{}/{}",
-            zfs::zfs_home(),
-            zfs::DOWNLOAD_SUBDIR,
-            uid.to_string()
-        );
-
         std::fs::write(&fname, &bs)?;
     } else {
         println!("Failed to serialise DownloadDigest -- aborting.")
