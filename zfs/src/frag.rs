@@ -3,10 +3,10 @@ use async_std::prelude::*;
 use checksum::crc::Crc;
 use std::path::Path;
 use std::path::PathBuf;
+use crate::*;
 
 pub async fn fragment(
     file_path: &str,
-    dest_path: &str,
     zkey: &str,
     fragment_size: usize,
 ) -> Result<crate::FragmentationDigest, String> {
@@ -16,33 +16,20 @@ pub async fn fragment(
                 Ok(f) => f,
                 Err(_) => return Err(format!("Unable to open the file {}", file_path)),
             };
-            // let mut bs = Vec::<u8>::with_capacity(fragment_size);
             let mut bs = vec![0_u8; fragment_size];
-            // for _ in 0..fragment_size {
-            //     bs.push(0);
-            // }
             log::debug!("bs.len() = {}", bs.len());
             let mut fid = 0;
-
-            let k = Path::new(zkey);
-            let mut target: PathBuf = [
-                dest_path,
-                k.strip_prefix(Path::new("/")).unwrap().to_str().unwrap(),
-            ]
-            .iter()
-            .collect();
-            log::debug!("Target dir: {:?}", target);
-            create_dir_all(target.as_path()).await.unwrap();
+            let frag_path = zfs_upload_frags_dir_for_key(zkey);
+            log::debug!("Target dir: {:?}", frag_path);
+            create_dir_all(Path::new(&frag_path)).await.unwrap();
             loop {
                 match file.read(&mut bs).await {
                     Ok(n) if n > 0 => {
-                        let mut frag_target = target.clone();
-                        frag_target.push(fid.to_string());
-                        let fname = frag_target.to_str().unwrap();
-                        let mut f = match File::create(fname).await {
+                        let fname = format!("{}/{}", &frag_path, fid.to_string());
+                        let mut f = match File::create(&fname).await {
                             Ok(f) => f,
                             Err(e) => {
-                                log::debug!("Error {:?} while creating the fragment: {}", e, fname);
+                                log::debug!("Error {:?} while creating the fragment: {}", e, &fname);
                                 panic!("IO Error")
                             }
                         };
@@ -52,19 +39,14 @@ pub async fn fragment(
                     _ => break,
                 }
             }
-
             let digest = crate::FragmentationDigest {
                 name: zkey.into(),
                 crc: checksum.crc64,
                 fragment_size,
                 fragments: fid,
             };
-            let bs = serde_json::to_vec(&digest).unwrap();
-            target.push(crate::ZFS_DIGEST);
-            let mut fdigest = File::create(target.as_path()).await.unwrap();
-            fdigest.write(&bs).await.unwrap();
             log::debug!("{:?}", digest);
-            Ok(digest)
+            write_defrag_digest(&digest, &frag_path).await.map(|_| digest)
         }
         Err(e) => Err(e.into()),
     }
@@ -81,9 +63,12 @@ pub async fn fragment_from_digest(path: String, fragment_size: usize) -> Result<
         Err(e) => return Err(format!("{:?}", e)),
     };
     log::debug!(target: "zfsd", "Uploading: {} as {}", &upload_spec.path, &upload_spec.key);
+    if !std::path::Path::new(&upload_spec.path).exists() {
+        log::warn!(target: "zfsd", "The file {} does not exit", &upload_spec.path);
+        return Ok(())
+    }
     crate::frag::fragment(
         &upload_spec.path,
-        target.to_str().unwrap(),
         &upload_spec.key,
         fragment_size,
     )
@@ -92,40 +77,46 @@ pub async fn fragment_from_digest(path: String, fragment_size: usize) -> Result<
     Ok(())
 }
 
-pub async fn defragment(fragments_path: &str, dest_path: &str) -> bool {
-    let path: PathBuf = [fragments_path, crate::ZFS_DIGEST].iter().collect();
-    let bs = std::fs::read(path.as_path()).unwrap();
-    let digest = serde_json::from_slice::<crate::FragmentationDigest>(&bs).unwrap();
-    let file_path = PathBuf::from(digest.name);
-
-    let target_path: PathBuf = [
-        dest_path,
-        file_path
-            .strip_prefix(Path::new("/"))
-            .unwrap()
-            .to_str()
-            .unwrap(),
-    ]
-    .iter()
-    .collect();
-
-    create_dir_all(target_path.as_path()).await.unwrap();
-
-    let mut target_fpath = target_path.clone();
-    target_fpath.push("file-content");
-    let mut f = File::create(target_fpath.as_path()).await.unwrap();
-    let base_fpath = PathBuf::from(fragments_path);
-    for i in 0..digest.fragments {
-        let mut fpath = base_fpath.clone();
-        fpath.push(i.to_string());
-        let bs = std::fs::read(fpath.as_path()).unwrap();
-        f.write(&bs).await.unwrap();
+pub async fn read_defrag_digest(base_path: &str) -> Result<FragmentationDigest, String> {
+    let path: PathBuf = [&base_path, crate::ZFS_DIGEST].iter().collect();
+    let bs = async_std::fs::read(path.as_path()).await.unwrap();
+    match serde_json::from_slice::<crate::FragmentationDigest>(&bs) {
+        Ok(digest) => Ok(digest),
+        Err(e) => Err(format!("{:?}", e))
     }
+}
 
-    drop(f);
-    let crc64 = Crc::new(target_fpath.as_path().to_str().unwrap())
-        .checksum()
-        .unwrap()
-        .crc64;
-    crc64 == digest.crc
+pub async fn write_defrag_digest(digest: &FragmentationDigest, base_path: &str) -> Result<(), String> {
+    let bs = serde_json::to_vec(&digest).unwrap();
+    let digest_path = format!("{}/{}", base_path, ZFS_DIGEST);
+    let mut fdigest = File::create(Path::new(&digest_path)).await.unwrap();
+    fdigest.write(&bs).await.unwrap();
+    Ok(())
+}
+pub async fn defragment(key: &str, dest: &str) -> Result<bool, String> {
+    let fragments_path = zfs_download_frags_dir_for_key(key);
+
+    match read_defrag_digest(&fragments_path).await {
+        Ok(digest) => {
+            let dest_path = Path::new(dest);
+            let dest_dir =
+                dest_path.parent().unwrap().to_str().unwrap().to_string();
+            create_dir_all(Path::new(&dest_dir)).await.unwrap();
+
+            let mut f = File::create(Path::new(&dest)).await.unwrap();
+            for i in 0..digest.fragments {
+                let frag_path = format!("{}/{}", fragments_path, i);
+                let bs = std::fs::read(Path::new(&frag_path)).unwrap();
+                f.write(&bs).await.unwrap();
+            }
+
+            drop(f);
+            let crc64 = Crc::new(dest)
+                .checksum()
+                .unwrap()
+                .crc64;
+            Ok(crc64 == digest.crc)
+        },
+        Err(e) => Err(e)
+    }
 }
