@@ -1,7 +1,12 @@
+use std::fmt::Debug;
+use std::time::Duration;
 use serde::{Deserialize, Serialize};
 
+pub const FS_EVT_DELAY: u64 = 1;
+pub const SANITIZER_PERIOD: Duration = Duration::from_secs(3);
+pub const GAP_DOWNLOAD_SCHEDULE: usize = 32;
+
 pub static ZFS_DIGEST: &str = "zfs-digest";
-pub const EVT_DELAY: u64 = 1;
 pub const DOWNLOAD_SUBDIR: &str = "download";
 pub const UPLOAD_SUBDIR: &str = "upload";
 pub const FRAGS_SUBDIR: &str = "frags";
@@ -19,7 +24,7 @@ pub const FRAGMENT_SIZE: usize = 4 * 1024;
 ///        +- download
 ///        +- upload
 ///
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FragmentationDigest {
     pub name: String,
     pub crc: u64,
@@ -46,6 +51,9 @@ mod transfer;
 pub use frag::*;
 pub use transfer::*;
 
+pub fn zfs_err2str<E: Debug>(e: E) -> String {
+    format!("{:?}", e)
+}
 pub fn zfs_home() -> String {
     if let Ok(zfs_home) = std::env::var("ZFS_HOME") {
         zfs_home
@@ -86,4 +94,14 @@ pub fn zfs_upload_frags_dir_for_key(k: &str) -> String {
 
 pub fn zfs_upload_frag_dir_to_key(path: &str) -> Option<String> {
     path.strip_prefix(&zfs_upload_frags_dir()).map(|s| s.to_string())
+}
+
+pub async fn zfs_read_download_digest_from(path: &std::path::Path) -> Result<DownloadDigest, String> {
+    async_std::fs::read(path).await
+        .map_err(zfs_err2str)
+        .and_then(
+            |bs|
+                serde_json::from_slice::<crate::DownloadDigest>(&bs)
+                    .map_err(zfs_err2str))
+
 }
