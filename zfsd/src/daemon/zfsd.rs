@@ -1,9 +1,9 @@
 use clap::{App, Arg};
+use futures::TryFutureExt;
 use indicatif::ProgressStyle;
 use notify::{DebouncedEvent, RecursiveMode, Watcher};
-use std::collections::{BTreeSet, HashMap};
 use std::fs::create_dir_all;
-use std::{sync::mpsc::channel, sync::Arc, time::Duration};
+use std::{sync::mpsc::channel, time::Duration};
 use zenoh::net::*;
 use zenoh::Properties;
 use zfs::*;
@@ -74,13 +74,14 @@ async fn main() {
                     // indicatif crate does not work properly show progress when using multibar
                     // along with async tasks.
 
-                    match zfs::download(z.clone(), path.as_path(), sty.clone()).await {
-                        Ok(()) => {}
-                        Err(e) => {
-                            log::warn!("Failed to download due to: {:?}", e);
-                        }
-                    }
-                    // std::fs::remove_file(path.as_path()).unwrap();
+                    async_std::task::spawn(
+                        zfs::download(z.clone(), path.clone(), sty.clone()).or_else(
+                            |e| async move {
+                                log::warn!("Failed to download due to: {}", e);
+                                Ok::<(), String>(())
+                            },
+                        ),
+                    );
                 } else if parent.ends_with(UPLOAD_SUBDIR) {
                     log::info!(target: "zfsd","Fragmenting {:?}", &path);
                     let p = path.to_str().unwrap().to_string();
@@ -93,11 +94,6 @@ async fn main() {
                         match fpath.find(FRAGS_SUBDIR) {
                             Some(_) => {
                                 log::debug!(target: "zfsd", "Handling path: {}", fpath);
-                                let fname: String = if let Some(s) = path.file_name() {
-                                    s.to_str().unwrap().to_string()
-                                } else {
-                                    break;
-                                };
                                 match zfs_upload_frag_dir_to_key(fpath) {
                                     Some(key) => {
                                         log::debug!(target: "zfsd", "Uploading fragment : {:?} as {:?}", path, &key);

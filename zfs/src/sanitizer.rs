@@ -1,5 +1,4 @@
 use crate::*;
-use std::cmp::max;
 use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 use zenoh::net::Session;
@@ -14,8 +13,8 @@ async fn cleanup_download(digest: &DownloadDigest, download_manifest: &str) -> R
         async_std::task::sleep(Duration::from_secs(2 * FS_EVT_DELAY)).await;
         if target.metadata().unwrap().len() == size {
             let frags_path = zfs_download_frags_dir_for_key(&digest.key);
-            std::fs::remove_dir_all(&frags_path);
-            std::fs::remove_file(std::path::Path::new(download_manifest));
+            let _ignore = std::fs::remove_dir_all(&frags_path);
+            let _ignore = std::fs::remove_file(std::path::Path::new(download_manifest));
         } else {
             log::debug!(
                 "The target {} is still being reassembled, clean up will be scheduled later",
@@ -24,9 +23,6 @@ async fn cleanup_download(digest: &DownloadDigest, download_manifest: &str) -> R
         }
     }
     Ok(())
-}
-async fn is_download_completed(digest: &DownloadDigest) -> bool {
-    true
 }
 
 async fn compute_download_gaps(digest: &DownloadDigest) -> Result<BTreeSet<usize>, String> {
@@ -114,45 +110,6 @@ pub async fn download_sanitizer(z: Arc<Session>) {
                                         );
                                     }
                                 }
-                                // if filtered_gaps.len() != 0 {
-                                //     for i in 0..delta {
-                                //         reg_entry.tide_level = gap;
-                                //         async_std::task::spawn(download_fragment(
-                                //             z.clone(),
-                                //             reg_entry.digest.key.clone(),
-                                //             gap as u32,
-                                //         ));
-                                //     }
-                                //
-                                //     if !gaps.contains(&reg_entry.tide_level) {
-                                //         let mut n = GAP_DOWNLOAD_SCHEDULE;
-                                //         reg_entry.progress = true;
-                                //         for gap in gaps {
-                                //             if n > 0 {
-                                //                 reg_entry.tide_level = gap;
-                                //                 async_std::task::spawn(download_fragment(
-                                //                     z.clone(),
-                                //                     reg_entry.digest.key.clone(),
-                                //                     gap as u32,
-                                //                 ));
-                                //                 n -= 1;
-                                //             }
-                                //         }
-                                //     } else {
-                                //         log::warn!(
-                                //             "Gaps recovery for {:?} is unusually slow",
-                                //             &reg_entry.digest.key
-                                //         );
-                                //         reg_entry.progress = false;
-                                //     }
-                                // } else {
-                                //     log::info!(
-                                //         "Gaps recovery for {:?} is unusually slow for some old fragments, resetting tide-level",
-                                //         &reg_entry.digest.key
-                                //     );
-                                //     reg_entry.tide_level = 0;
-                                //     reg_entry.progress = false;
-                                // }
                             }
                         }
                         None => {
