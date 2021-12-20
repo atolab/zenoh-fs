@@ -90,12 +90,12 @@ pub fn zfs_download_frags_dir() -> String {
 
 pub fn zfs_download_frags_dir_for_key(k: &str) -> String {
     k.chars()
-        .nth(0)
-        .and_then(|c| {
+        .next()
+        .map(|c| {
             if c == '/' {
-                Some(format!("{}{}", zfs_download_frags_dir(), k))
+                format!("{}{}", zfs_download_frags_dir(), k)
             } else {
-                Some(format!("{}/{}", zfs_download_frags_dir(), k))
+                format!("{}/{}", zfs_download_frags_dir(), k)
             }
         })
         .unwrap()
@@ -103,12 +103,12 @@ pub fn zfs_download_frags_dir_for_key(k: &str) -> String {
 
 pub fn zfs_upload_frags_dir_for_key(k: &str) -> String {
     k.chars()
-        .nth(0)
-        .and_then(|c| {
+        .next()
+        .map(|c| {
             if c == '/' {
-                Some(format!("{}{}", zfs_upload_frags_dir(), k))
+                format!("{}{}", zfs_upload_frags_dir(), k)
             } else {
-                Some(format!("{}/{}", zfs_upload_frags_dir(), k))
+                format!("{}/{}", zfs_upload_frags_dir(), k)
             }
         })
         .unwrap()

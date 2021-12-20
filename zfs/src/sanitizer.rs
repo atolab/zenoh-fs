@@ -35,8 +35,7 @@ async fn compute_download_gaps(digest: &DownloadDigest) -> Result<BTreeSet<usize
     }
     let path = std::path::Path::new(&frags_path);
     if let Ok(entries) = path.read_dir() {
-        for e in entries {
-            if let Ok(entry) = e {
+        for entry in entries.flatten() {
                 let name = entry
                     .path()
                     .file_name()
@@ -46,7 +45,6 @@ async fn compute_download_gaps(digest: &DownloadDigest) -> Result<BTreeSet<usize
                 if let Ok(n) = name.parse() {
                     frag_set.remove(&n);
                 }
-            }
         }
     }
     Ok(frag_set)
@@ -59,8 +57,7 @@ pub async fn download_sanitizer(z: Arc<zenoh::Session>) {
     loop {
         async_std::task::sleep(SANITIZER_PERIOD).await;
         if let Ok(entries) = dpath.read_dir() {
-            for e in entries {
-                if let Ok(entry) = e {
+            for entry in entries.flatten() {
                     match registry.get_mut(entry.path().to_str().unwrap()) {
                         Some(reg_entry) => {
                             let mut gaps: Vec<usize> = compute_download_gaps(&reg_entry.digest)
@@ -68,12 +65,12 @@ pub async fn download_sanitizer(z: Arc<zenoh::Session>) {
                                 .unwrap()
                                 .into_iter()
                                 .collect();
-                            if gaps.len() == 0 {
+                            if gaps.is_empty() {
                                 cleanup_download(&reg_entry.digest, entry.path().to_str().unwrap())
                                     .await
                                     .unwrap();
                             } else {
-                                gaps.sort();
+                                gaps.sort_unstable();
                                 let new_gap_num = gaps.len();
                                 let filtered_gaps: Vec<usize> = gaps
                                     .clone()
@@ -120,9 +117,9 @@ pub async fn download_sanitizer(z: Arc<zenoh::Session>) {
                                 .unwrap()
                                 .into_iter()
                                 .collect();
-                            gaps.sort();
+                            gaps.sort_unstable();
 
-                            if gaps.len() > 0 {
+                            if gaps.is_empty() {
                                 let tide_level = *gaps.get(0).unwrap();
                                 let gap_nun = gaps.len();
                                 let sre = SanitizerRegistryEntry {
@@ -139,7 +136,6 @@ pub async fn download_sanitizer(z: Arc<zenoh::Session>) {
                             }
                         }
                     }
-                }
             }
         } else {
             log::warn!(target: "zfsd", "Sanitizer unable to list the directory {:?}", dpath);

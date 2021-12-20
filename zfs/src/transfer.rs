@@ -114,14 +114,14 @@ pub async fn download(
             std::fs::create_dir_all(parent).unwrap();
             defragment(&download_spec.key, &download_spec.path)
                 .await
-                .and_then(|r| {
+                .map(|r| {
                     if r {
-                        Ok(bar.finish())
+                        bar.finish();
                     } else {
-                        Ok(log::warn!(
+                        log::warn!(
                             "The file received for {} was currupted.",
                             &download_spec.key
-                        ))
+                        )
                     }
                 })
         }

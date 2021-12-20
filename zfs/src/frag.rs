@@ -78,7 +78,7 @@ pub async fn fragment_from_digest(path: String) -> Result<(), String> {
 }
 
 pub async fn read_defrag_digest(base_path: &str) -> Result<FragmentationDigest, String> {
-    let path: PathBuf = [&base_path, crate::ZFS_DIGEST].iter().collect();
+    let path: PathBuf = [base_path, crate::ZFS_DIGEST].iter().collect();
     let bs = async_std::fs::read(path.as_path()).await.unwrap();
     match serde_json::from_slice::<crate::FragmentationDigest>(&bs) {
         Ok(digest) => Ok(digest),
