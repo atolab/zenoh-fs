@@ -4,12 +4,14 @@ use std::sync::Arc;
 
 use crate::*;
 use indicatif::{ProgressBar, ProgressStyle};
-use zenoh::net::{queryable, QueryConsolidation, QueryTarget, Session, Target};
 
+use zenoh::query::*;
+use zenoh::queryable;
+use zenoh::Session;
 pub async fn upload_fragment(z: &Session, path: &str, key: &str) {
     let path = PathBuf::from(path);
     let bs = std::fs::read(path.as_path()).unwrap();
-    z.write(&key.into(), bs.into()).await.unwrap();
+    z.put(key, bs).await.unwrap();
 }
 
 pub async fn download_fragment(z: Arc<Session>, key: String, n: u32) -> Result<(), String> {
@@ -29,19 +31,15 @@ pub async fn download_fragment(z: Arc<Session>, key: String, n: u32) -> Result<(
     // the sanitizer and the regular download process.
     log::debug!(target: "zfsd", "Retrieving fragment: {}/{}", key, n);
     let mut replies = z
-        .query(
-            &frag_key.clone().into(),
-            "",
-            QueryTarget {
-                kind: queryable::STORAGE,
-                target: Target::default(),
-            },
-            QueryConsolidation::default(),
-        )
+        .get(&frag_key.clone())
+        .target(QueryTarget {
+            kind: queryable::STORAGE,
+            target: Target::default(),
+        })
         .await
         .unwrap();
     if let Some(reply) = replies.next().await {
-        let bs = reply.data.payload.contiguous();
+        let bs = reply.data.value.payload.contiguous();
         async_std::fs::write(std::path::Path::new(&frag), bs)
             .await
             .map_err(|e| format!("{:?}", e))
@@ -55,20 +53,16 @@ pub async fn download_fragmentation_digest(
 ) -> Result<FragmentationDigest, String> {
     log::debug!(target: "zfsd", "Retrieving fragmentation digest: {}", &digest_key);
     let mut replies = z
-        .query(
-            &digest_key.into(),
-            "",
-            QueryTarget {
-                kind: queryable::STORAGE,
-                target: Target::default(),
-            },
-            QueryConsolidation::default(),
-        )
+        .get(digest_key)
+        .target(QueryTarget {
+            kind: queryable::STORAGE,
+            target: Target::default(),
+        })
         .await
         .unwrap();
 
     if let Some(reply) = replies.next().await {
-        let bs = reply.data.payload.contiguous();
+        let bs = reply.data.value.payload.contiguous();
         let digest = serde_json::from_slice::<FragmentationDigest>(&bs).unwrap();
         Ok(digest)
     } else {

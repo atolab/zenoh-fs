@@ -1,7 +1,6 @@
 use crate::*;
 use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
-use zenoh::net::Session;
 
 async fn cleanup_download(digest: &DownloadDigest, download_manifest: &str) -> Result<(), String> {
     // Check first if the file has been really created
@@ -53,7 +52,7 @@ async fn compute_download_gaps(digest: &DownloadDigest) -> Result<BTreeSet<usize
     Ok(frag_set)
 }
 
-pub async fn download_sanitizer(z: Arc<Session>) {
+pub async fn download_sanitizer(z: Arc<zenoh::Session>) {
     let mut registry = HashMap::<String, SanitizerRegistryEntry>::new();
     let d3 = zfs_download_digest_dir();
     let dpath = std::path::Path::new(&d3);
