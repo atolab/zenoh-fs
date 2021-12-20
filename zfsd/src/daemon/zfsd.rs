@@ -1,9 +1,9 @@
-use std::fs::{create_dir_all};
-use std::collections::{HashMap, BTreeSet};
 use clap::{App, Arg};
+use futures::TryFutureExt;
 use indicatif::ProgressStyle;
 use notify::{DebouncedEvent, RecursiveMode, Watcher};
-use std::{sync::mpsc::channel, sync::Arc, time::Duration};
+use std::fs::create_dir_all;
+use std::{sync::mpsc::channel, time::Duration};
 use zenoh::net::*;
 use zenoh::Properties;
 use zfs::*;
@@ -37,123 +37,6 @@ fn init() -> Result<(), String> {
         .map_err(|e| format!("{:?}", e))
 }
 
-async fn cleanup_download_if_complete(_manifest: &DownloadDigest) {
-
-}
-async fn cleanup_download(_digest: &DownloadDigest) -> Result<(), String> {
-    Ok(())
-}
-async fn is_download_completed(digest: &DownloadDigest) -> bool { true }
-
-async fn compute_download_gaps(digest: &DownloadDigest) -> Result<BTreeSet<usize>, String> {
-    let frags_path = zfs_download_frags_dir_for_key(&digest.key);
-    let frag_digest_path = format!("{}/{}", frags_path, ZFS_DIGEST);
-    let defrag_digest = read_defrag_digest(&frag_digest_path).await.unwrap();
-    let mut frag_set = BTreeSet::new();
-
-    for i in 0..defrag_digest.fragments {
-        frag_set.insert(i as usize);
-    }
-    let path = std::path::Path::new(&frags_path);
-    if let Ok(entries) = path.read_dir() {
-        for e in entries {
-            if let Ok(entry) = e {
-                let name = entry.path().file_name()
-                    .and_then(|s| s.to_str()).unwrap().to_string();
-                if let Ok(n) = name.parse() {
-                    frag_set.remove(&n);
-                }
-            }
-        }
-    }
-    Ok(frag_set)
-}
-struct SanitizerRegistryEntry {
-    digest: Arc<DownloadDigest>,
-    tide_level: usize,
-    progress: bool
-}
-
-async fn download_sanitizer(z: Arc<Session>) {
-    let mut registry = HashMap::<String, SanitizerRegistryEntry>::new();
-    let d3 = zfs_download_digest_dir();
-    let dpath = std::path::Path::new (&d3);
-    loop {
-        async_std::task::sleep(SANITIZER_PERIOD).await;
-        if let Ok(entries) = dpath.read_dir() {
-            for e in entries {
-                if let Ok(entry) = e {
-                    match registry.get_mut(entry.path().to_str().unwrap()) {
-                        Some (reg_entry) => {
-                            // &mut (digest, mut tide_level, mut progress)
-                            let mut gaps: Vec<usize> =
-                                compute_download_gaps(&reg_entry.digest).await.unwrap()
-                                    .into_iter()
-                                    .collect();
-
-                            gaps.sort();
-
-                            let filtered_gaps : Vec<usize> =
-                                gaps.clone().into_iter()
-                                    .filter(|n| *n >= reg_entry.tide_level)
-                                    .collect();
-
-                            if filtered_gaps.len() != 0 {
-
-                                if !gaps.contains(&reg_entry.tide_level) {
-                                    let mut n = GAP_DOWNLOAD_SCHEDULE;
-                                    for gap in gaps {
-                                        if n > 0 {
-                                            reg_entry.tide_level = gap;
-                                            async_std::task::spawn(download_fragment(z.clone(), reg_entry.digest.key.clone(), gap as u32));
-                                        }
-                                    }
-                                } else {
-                                    log::warn!("Gaps recovery for {:?} is unusually slow", &reg_entry.digest.key);
-                                }
-                            } else if gaps.len() == 0 {
-                                log::info!("Gaps recovery for {:?} is unusually slow", &reg_entry.digest.key);
-                            }
-                        },
-                        None => {
-                            let digest =
-                                zfs_read_download_digest_from(entry.path().as_path()).await.unwrap();
-                            let mut gaps: Vec<usize> =
-                                compute_download_gaps(&digest).await.unwrap()
-                                    .into_iter()
-                                    .collect();
-                            gaps.sort();
-
-
-                            if gaps.len() > 0 {
-                                let tide_level = *gaps.get(0).unwrap();
-                                let progress = true;
-                                let sre = SanitizerRegistryEntry {
-                                    digest: Arc::new(digest),
-                                    tide_level,
-                                    progress
-                                };
-                                registry.insert(entry.path().to_str().unwrap().into(), sre);
-                            } else {
-                                cleanup_download(&digest).await.unwrap();
-                            }
-                        }
-                    }
-                }
-            }
-        } else {
-            log::warn!(target: "zfsd", "Sanitizer unable to list the directory {:?}", dpath);
-        }
-
-    }
-}
-async fn upload_sanitizer() {
-    loop {
-        async_std::task::sleep(Duration::from_secs(5)).await;
-        // async_std::fs::read_dir()
-    }
-}
-
 #[async_std::main]
 async fn main() {
     println!("Starting zfsd...");
@@ -165,9 +48,15 @@ async fn main() {
     let (tx, rx) = channel();
     let mut watcher = notify::watcher(tx, Duration::from_secs(FS_EVT_DELAY)).unwrap();
     let fragment_size = FRAGMENT_SIZE;
-    watcher.watch(&zfs_download_digest_dir(), RecursiveMode::NonRecursive).unwrap();
-    watcher.watch(&zfs_upload_digest_dir(), RecursiveMode::NonRecursive).unwrap();
-    watcher.watch(&zfs_upload_frags_dir(), RecursiveMode::Recursive).unwrap();
+    watcher
+        .watch(&zfs_download_digest_dir(), RecursiveMode::NonRecursive)
+        .unwrap();
+    watcher
+        .watch(&zfs_upload_digest_dir(), RecursiveMode::NonRecursive)
+        .unwrap();
+    watcher
+        .watch(&zfs_upload_frags_dir(), RecursiveMode::Recursive)
+        .unwrap();
 
     let sty = ProgressStyle::default_bar()
         .template("[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}")
@@ -185,13 +74,14 @@ async fn main() {
                     // indicatif crate does not work properly show progress when using multibar
                     // along with async tasks.
 
-                    match zfs::download(z.clone(), path.as_path(), sty.clone()).await {
-                        Ok(()) => {}
-                        Err(e) => {
-                            log::warn!("Failed to download due to: {:?}", e);
-                        }
-                    }
-                    // std::fs::remove_file(path.as_path()).unwrap();
+                    async_std::task::spawn(
+                        zfs::download(z.clone(), path.clone(), sty.clone()).or_else(
+                            |e| async move {
+                                log::warn!("Failed to download due to: {}", e);
+                                Ok::<(), String>(())
+                            },
+                        ),
+                    );
                 } else if parent.ends_with(UPLOAD_SUBDIR) {
                     log::info!(target: "zfsd","Fragmenting {:?}", &path);
                     let p = path.to_str().unwrap().to_string();
@@ -204,9 +94,6 @@ async fn main() {
                         match fpath.find(FRAGS_SUBDIR) {
                             Some(_) => {
                                 log::debug!(target: "zfsd", "Handling path: {}", fpath);
-                                let fname: String = if let Some(s) = path.file_name() {
-                                    s.to_str().unwrap().to_string()
-                                } else { break };
                                 match zfs_upload_frag_dir_to_key(fpath) {
                                     Some(key) => {
                                         log::debug!(target: "zfsd", "Uploading fragment : {:?} as {:?}", path, &key);

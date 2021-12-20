@@ -1,5 +1,5 @@
 use clap::{App, Arg};
-use zfs::{UploadDigest, zfs_upload_digest_dir};
+use zfs::{zfs_upload_digest_dir, UploadDigest};
 
 fn write_upload_digest(digest: UploadDigest) -> std::io::Result<()> {
     let uid = uuid::Uuid::new_v4();
@@ -38,29 +38,3 @@ fn main() {
         println!("The file {} does not exit", &path);
     }
 }
-
-// fn old_main() {
-//     let mut path: String = String::new();
-//     let mut key: String = String::new();
-//     print!("Enter the path of the file to upload:\n:> ");
-//     std::io::stdout().flush().unwrap();
-//     let n = std::io::stdin().read_line(&mut path).unwrap();
-//     path = path[0..n - 1].to_string(); // Drop eol terminators
-//     if std::path::Path::new(&path).exists() {
-//         print!("Enter the zfs key for this file:\n:> ");
-//         std::io::stdout().flush().unwrap();
-//         match std::io::stdin().read_line(&mut key) {
-//             Ok(n) if n > 1 => {
-//                 key = key[0..n - 1].to_string();
-//                 let digest = UploadDigest { path, key };
-//                 write_upload_digest(digest).unwrap();
-//             }
-//             _ => {
-//                 println!("{} is an invalid key.", &key);
-//                 return;
-//             }
-//         }
-//     } else {
-//         println!("The file {} does not exist.", &path);
-//     }
-// }

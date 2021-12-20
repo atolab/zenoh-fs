@@ -1,10 +1,11 @@
+use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::time::Duration;
-use serde::{Deserialize, Serialize};
 
 pub const FS_EVT_DELAY: u64 = 1;
 pub const SANITIZER_PERIOD: Duration = Duration::from_secs(3);
 pub const GAP_DOWNLOAD_SCHEDULE: usize = 32;
+pub const STUCK_CYCLES_RESET: usize = 3;
 
 pub static ZFS_DIGEST: &str = "zfs-digest";
 pub const DOWNLOAD_SUBDIR: &str = "download";
@@ -45,10 +46,20 @@ pub struct DownloadDigest {
     pub pace: u32,
 }
 
+#[derive(Debug)]
+struct SanitizerRegistryEntry {
+    digest: std::sync::Arc<DownloadDigest>,
+    tide_level: usize,
+    gap_nun: usize,
+    stuck_cycles: usize,
+}
+
 mod frag;
+mod sanitizer;
 mod transfer;
 
 pub use frag::*;
+pub use sanitizer::{download_sanitizer, upload_sanitizer};
 pub use transfer::*;
 
 pub fn zfs_err2str<E: Debug>(e: E) -> String {
@@ -77,31 +88,41 @@ pub fn zfs_download_frags_dir() -> String {
 }
 
 pub fn zfs_download_frags_dir_for_key(k: &str) -> String {
-    k.chars().nth(0)
-        .and_then(
-            |c| if c == '/' { Some(format!("{}{}", zfs_download_frags_dir(), k)) }
-                      else { Some(format!("{}/{}", zfs_download_frags_dir(), k)) }
-        ).unwrap()
+    k.chars()
+        .nth(0)
+        .and_then(|c| {
+            if c == '/' {
+                Some(format!("{}{}", zfs_download_frags_dir(), k))
+            } else {
+                Some(format!("{}/{}", zfs_download_frags_dir(), k))
+            }
+        })
+        .unwrap()
 }
 
 pub fn zfs_upload_frags_dir_for_key(k: &str) -> String {
-    k.chars().nth(0)
-        .and_then(
-            |c| if c == '/' { Some(format!("{}{}", zfs_upload_frags_dir(), k)) }
-            else { Some(format!("{}/{}", zfs_upload_frags_dir(), k)) }
-        ).unwrap()
+    k.chars()
+        .nth(0)
+        .and_then(|c| {
+            if c == '/' {
+                Some(format!("{}{}", zfs_upload_frags_dir(), k))
+            } else {
+                Some(format!("{}/{}", zfs_upload_frags_dir(), k))
+            }
+        })
+        .unwrap()
 }
 
 pub fn zfs_upload_frag_dir_to_key(path: &str) -> Option<String> {
-    path.strip_prefix(&zfs_upload_frags_dir()).map(|s| s.to_string())
+    path.strip_prefix(&zfs_upload_frags_dir())
+        .map(|s| s.to_string())
 }
 
-pub async fn zfs_read_download_digest_from(path: &std::path::Path) -> Result<DownloadDigest, String> {
-    async_std::fs::read(path).await
+pub async fn zfs_read_download_digest_from(
+    path: &std::path::Path,
+) -> Result<DownloadDigest, String> {
+    async_std::fs::read(path)
+        .await
         .map_err(zfs_err2str)
-        .and_then(
-            |bs|
-                serde_json::from_slice::<crate::DownloadDigest>(&bs)
-                    .map_err(zfs_err2str))
-
+        .and_then(|bs| serde_json::from_slice::<crate::DownloadDigest>(&bs).map_err(zfs_err2str))
 }

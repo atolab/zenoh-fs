@@ -2,9 +2,9 @@ use futures::prelude::*;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use crate::*;
 use indicatif::{ProgressBar, ProgressStyle};
 use zenoh::net::{queryable, QueryConsolidation, QueryTarget, Session, Target};
-use crate::*;
 
 pub async fn upload_fragment(z: &Session, path: &str, key: &str) {
     let path = PathBuf::from(path);
@@ -18,8 +18,11 @@ pub async fn download_fragment(z: Arc<Session>, key: String, n: u32) -> Result<(
     let frag = format!("{}/{}", &path, n);
 
     if Path::new(&frag).exists() {
-        log::debug!("The fragment {} already has already been downloaded, skipping.", &frag);
-        return Ok(())
+        log::debug!(
+            "The fragment {} already has already been downloaded, skipping.",
+            &frag
+        );
+        return Ok(());
     }
 
     // First check if the fragment is already there -- there is potential concurrency between
@@ -39,13 +42,17 @@ pub async fn download_fragment(z: Arc<Session>, key: String, n: u32) -> Result<(
         .unwrap();
     if let Some(reply) = replies.next().await {
         let bs = reply.data.payload.contiguous();
-        async_std::fs::write(std::path::Path::new(&frag), bs).await
+        async_std::fs::write(std::path::Path::new(&frag), bs)
+            .await
             .map_err(|e| format!("{:?}", e))
     } else {
         Err(format!("Unable to retrieve fragment: {}", &frag_key))
     }
 }
-pub async fn download_fragmentation_digest(z: std::sync::Arc<Session>, digest_key: &str) -> Result<FragmentationDigest, String> {
+pub async fn download_fragmentation_digest(
+    z: std::sync::Arc<Session>,
+    digest_key: &str,
+) -> Result<FragmentationDigest, String> {
     log::debug!(target: "zfsd", "Retrieving fragmentation digest: {}", &digest_key);
     let mut replies = z
         .query(
@@ -71,10 +78,11 @@ pub async fn download_fragmentation_digest(z: std::sync::Arc<Session>, digest_ke
 
 pub async fn download(
     z: std::sync::Arc<Session>,
-    path: &Path,
+    path_buf: PathBuf,
     pstyle: ProgressStyle,
 ) -> Result<(), String> {
-    let bs = std::fs::read(path).unwrap();
+    // let path = path_buf.as_path();
+    let bs = std::fs::read(path_buf.as_path()).unwrap();
     let download_spec = match serde_json::from_slice::<DownloadDigest>(&bs) {
         Ok(ds) => ds,
         Err(e) => return Err(format!("{:?}", e)),
@@ -88,17 +96,18 @@ pub async fn download(
         return Ok(());
     }
 
-    let frag_digest =  format!("{}/{}", download_spec.key, ZFS_DIGEST);
+    let frag_digest = format!("{}/{}", download_spec.key, ZFS_DIGEST);
     let digest = download_fragmentation_digest(z.clone(), &frag_digest).await?;
 
     let frags_dir = zfs_download_frags_dir_for_key(&download_spec.key);
-    async_std::fs::create_dir_all(std::path::Path::new(&frags_dir)).await.unwrap();
-
+    async_std::fs::create_dir_all(std::path::Path::new(&frags_dir))
+        .await
+        .unwrap();
 
     let bar = ProgressBar::new(digest.fragments.into());
     bar.set_style(pstyle);
     bar.set_message(download_spec.key.clone());
-    write_defrag_digest(&digest,&frags_dir).await?;
+    write_defrag_digest(&digest, &frags_dir).await?;
     for i in 0..digest.fragments {
         download_fragment(z.clone(), download_spec.key.clone(), i).await?;
         bar.inc(1);
@@ -111,12 +120,17 @@ pub async fn download(
             std::fs::create_dir_all(parent).unwrap();
             defragment(&download_spec.key, &download_spec.path)
                 .await
-                .and_then(|r|
-                    if r { Ok(bar.finish()) }
-                    else {
-                        Ok(log::warn!("The file received for {} was currupted.", &download_spec.key))
-                    })
-        },
+                .and_then(|r| {
+                    if r {
+                        Ok(bar.finish())
+                    } else {
+                        Ok(log::warn!(
+                            "The file received for {} was currupted.",
+                            &download_spec.key
+                        ))
+                    }
+                })
+        }
         None => {
             log::warn!(target: "zfsd", "Invalid target path: {:?}\n Unable to defragment", p);
             bar.finish_with_message("failed to defragment (see log)");
