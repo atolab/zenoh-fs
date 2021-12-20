@@ -12,7 +12,7 @@ pub const DOWNLOAD_SUBDIR: &str = "download";
 pub const UPLOAD_SUBDIR: &str = "upload";
 pub const FRAGS_SUBDIR: &str = "frags";
 pub const DIGEST_SUBDIR: &str = "digest";
-pub const FRAGMENT_SIZE: usize = 4 * 1024;
+pub const FRAGMENT_SIZE: usize = 32 * 1024;
 
 ///
 /// The ZFS structure is as follows:
@@ -37,6 +37,7 @@ pub struct FragmentationDigest {
 pub struct UploadDigest {
     pub path: String,
     pub key: String,
+    pub fragment_size: usize
 }
 
 #[derive(Debug, Serialize, Deserialize)]

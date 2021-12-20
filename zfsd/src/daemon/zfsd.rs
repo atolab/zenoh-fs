@@ -43,7 +43,6 @@ async fn main() {
     init().expect("zfsd failed to initalise!");
     let (tx, rx) = channel();
     let mut watcher = notify::watcher(tx, Duration::from_secs(FS_EVT_DELAY)).unwrap();
-    let fragment_size = FRAGMENT_SIZE;
     watcher
         .watch(&zfs_download_digest_dir(), RecursiveMode::NonRecursive)
         .unwrap();
@@ -82,7 +81,7 @@ async fn main() {
                     log::info!(target: "zfsd","Fragmenting {:?}", &path);
                     let p = path.to_str().unwrap().to_string();
                     let _ignore = async_std::task::spawn(
-                        zfs::fragment_from_digest(p, fragment_size).or_else(|e| async move {
+                        zfs::fragment_from_digest(p).or_else(|e| async move {
                             log::warn!("Failed to fragment due to: {}", e);
                             Ok::<(), String>(())
                         }),

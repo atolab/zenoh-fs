@@ -52,7 +52,7 @@ pub async fn fragment(
     }
 }
 
-pub async fn fragment_from_digest(path: String, fragment_size: usize) -> Result<(), String> {
+pub async fn fragment_from_digest(path: String) -> Result<(), String> {
     let path = PathBuf::from(path);
     let mut target = PathBuf::from(path.parent().unwrap());
     target.push(crate::FRAGS_SUBDIR);
@@ -70,7 +70,7 @@ pub async fn fragment_from_digest(path: String, fragment_size: usize) -> Result<
     crate::frag::fragment(
         &upload_spec.path,
         &upload_spec.key,
-        fragment_size,
+        upload_spec.fragment_size,
     )
     .await
     .unwrap();
