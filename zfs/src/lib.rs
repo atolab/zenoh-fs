@@ -44,7 +44,7 @@ pub struct UploadDigest {
 pub struct DownloadDigest {
     pub key: String,
     pub path: String,
-    pub pace: u32,
+    pub pace: usize,
 }
 
 #[derive(Debug)]
