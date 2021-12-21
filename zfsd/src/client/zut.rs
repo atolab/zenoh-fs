@@ -18,7 +18,7 @@ fn parse_args() -> (String, String, usize) {
         )
         .arg(
             Arg::from_usage(
-                "-k, --key=[KEY]...  'The key under which this file will be stored in zfs'",
+                "-k, --key=[KEY]...  'The key under which this file will be stored in zfs.'",
             )
             .required(true),
         )

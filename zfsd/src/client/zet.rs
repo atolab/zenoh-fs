@@ -12,14 +12,14 @@ fn write_download_digest(digest: DownloadDigest) -> std::io::Result<()> {
     Ok(())
 }
 fn parse_args() -> (String, String) {
-    let args = App::new("zut: zfs utility to upload files.")
+    let args = App::new("zet: zfs utility to download files.")
         .arg(
-            Arg::from_usage("-p, --path[PATH]...  'The path for the file to upload.'")
+            Arg::from_usage("-p, --path[PATH]...  'The path to download the file to.'")
                 .required(true),
         )
         .arg(
             Arg::from_usage(
-                "-k, --key=[KEY]...  'The key under which this file will be stored in zfs'",
+                "-k, --key=[KEY]...  'The key of the file to download.'",
             )
             .required(true),
         )
