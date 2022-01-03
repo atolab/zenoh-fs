@@ -4,19 +4,33 @@ use indicatif::ProgressStyle;
 use notify::{DebouncedEvent, RecursiveMode, Watcher};
 use std::fs::create_dir_all;
 use std::{sync::mpsc::channel, time::Duration};
+use zenoh::config::Config;
 use zfs::*;
 
 fn parse_args() -> zenoh::config::Config {
     let args = App::new("zenoh distributed file sytem")
         .arg(Arg::from_usage(
-            "-s, --fragment-size=[size]...  'The maximun size used for fragmenting for files.'",
+            "-m, --mode=[MODE] 'The zenoh session mode (peer by default)."
+        ).possible_values(&["peer", "client"]))
+        .arg(Arg::from_usage(
+            "-c, --config=[FILE]  'A zenoh configuration file.'",
+        ))
+        .arg(Arg::from_usage(
+            "-s, --fragment-size=[size]  'The maximun size used for fragmenting for files.'",
         ))
         .arg(Arg::from_usage(
             "-r, --remote-endpoints=[ENDPOINTS]...  'The locators for a remote zenoh endpoint such as a routers'",
         ))
         .get_matches();
 
-    let mut config = zenoh::config::Config::default();
+    let mut config = args
+        .value_of("config")
+        .map_or_else(Config::default, |conf_file| {
+            Config::from_file(conf_file).unwrap()
+        });
+    if let Some(Ok(mode)) = args.value_of("mode").map(|mode| mode.parse()) {
+        config.set_mode(Some(mode)).unwrap();
+    }
     if let Some(values) = args.values_of("remote-endpoints") {
         config.peers.extend(values.map(|v| v.parse().unwrap()));
     }
