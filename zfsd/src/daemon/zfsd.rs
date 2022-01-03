@@ -4,10 +4,14 @@ use indicatif::ProgressStyle;
 use notify::{DebouncedEvent, RecursiveMode, Watcher};
 use std::fs::create_dir_all;
 use std::{sync::mpsc::channel, time::Duration};
+use zenoh::config::Config;
 use zfs::*;
 
 fn parse_args() -> zenoh::config::Config {
     let args = App::new("zenoh distributed file sytem")
+        .arg(Arg::from_usage(
+            "-c, --config=[FILE]  'A zenoh configuration file.'",
+        ))
         .arg(Arg::from_usage(
             "-s, --fragment-size=[size]  'The maximun size used for fragmenting for files.'",
         ))
@@ -16,7 +20,11 @@ fn parse_args() -> zenoh::config::Config {
         ))
         .get_matches();
 
-    let mut config = zenoh::config::Config::default();
+    let mut config = args
+        .value_of("config")
+        .map_or_else(Config::default, |conf_file| {
+            Config::from_file(conf_file).unwrap()
+        });
     if let Some(values) = args.values_of("remote-endpoints") {
         config.peers.extend(values.map(|v| v.parse().unwrap()));
     }
