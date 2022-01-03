@@ -10,6 +10,9 @@ use zfs::*;
 fn parse_args() -> zenoh::config::Config {
     let args = App::new("zenoh distributed file sytem")
         .arg(Arg::from_usage(
+            "-m, --mode=[MODE] 'The zenoh session mode (peer by default)."
+        ).possible_values(&["peer", "client"]))
+        .arg(Arg::from_usage(
             "-c, --config=[FILE]  'A zenoh configuration file.'",
         ))
         .arg(Arg::from_usage(
@@ -25,6 +28,9 @@ fn parse_args() -> zenoh::config::Config {
         .map_or_else(Config::default, |conf_file| {
             Config::from_file(conf_file).unwrap()
         });
+    if let Some(Ok(mode)) = args.value_of("mode").map(|mode| mode.parse()) {
+        config.set_mode(Some(mode)).unwrap();
+    }
     if let Some(values) = args.values_of("remote-endpoints") {
         config.peers.extend(values.map(|v| v.parse().unwrap()));
     }
