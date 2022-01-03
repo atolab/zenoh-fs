@@ -9,7 +9,7 @@ use zfs::*;
 fn parse_args() -> zenoh::config::Config {
     let args = App::new("zenoh distributed file sytem")
         .arg(Arg::from_usage(
-            "-s, --fragment-size=[size]...  'The maximun size used for fragmenting for files.'",
+            "-s, --fragment-size=[size]  'The maximun size used for fragmenting for files.'",
         ))
         .arg(Arg::from_usage(
             "-r, --remote-endpoints=[ENDPOINTS]...  'The locators for a remote zenoh endpoint such as a routers'",
