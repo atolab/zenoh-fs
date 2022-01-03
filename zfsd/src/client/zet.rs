@@ -1,5 +1,5 @@
 use clap::{App, Arg};
-use zfs::{DownloadDigest, zfs_download_digest_dir};
+use zfs::{zfs_download_digest_dir, DownloadDigest};
 
 fn write_download_digest(digest: DownloadDigest) -> std::io::Result<()> {
     let uid = uuid::Uuid::new_v4();
@@ -25,7 +25,7 @@ fn parse_args() -> (String, String, usize) {
         )
         .arg(
             Arg::from_usage(
-                "-p, --pace=[MSEC]...  'The time in msec that should be waited before downloading the next fragment (0 means as fast as possible).'",
+                "-t, --tempo=[MSEC]...  'The time in msec that should be waited before downloading the next fragment (0 means as fast as possible).'",
             ).default_value("0"),
         )
         .get_matches();
@@ -33,7 +33,7 @@ fn parse_args() -> (String, String, usize) {
     (
         args.value_of("path").unwrap().to_string(),
         args.value_of("key").unwrap().to_string(),
-        args.value_of("pace").unwrap().parse().unwrap()
+        args.value_of("tempo").unwrap().parse().unwrap(),
     )
 }
 

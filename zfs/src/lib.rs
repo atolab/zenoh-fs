@@ -6,6 +6,7 @@ pub const FS_EVT_DELAY: u64 = 1;
 pub const SANITIZER_PERIOD: Duration = Duration::from_secs(3);
 pub const GAP_DOWNLOAD_SCHEDULE: usize = 32;
 pub const STUCK_CYCLES_RESET: usize = 3;
+pub const MAX_ACCELERATION: usize = 33;
 
 pub static ZFS_DIGEST: &str = "zfs-digest";
 pub const DOWNLOAD_SUBDIR: &str = "download";
@@ -28,6 +29,7 @@ pub const FRAGMENT_SIZE: usize = 32 * 1024;
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FragmentationDigest {
     pub name: String,
+    pub size: u64,
     pub crc: u64,
     pub fragment_size: usize,
     pub fragments: u32,
@@ -37,7 +39,7 @@ pub struct FragmentationDigest {
 pub struct UploadDigest {
     pub path: String,
     pub key: String,
-    pub fragment_size: usize
+    pub fragment_size: usize,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

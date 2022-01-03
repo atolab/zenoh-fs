@@ -56,6 +56,8 @@ async fn main() {
         .template("[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}")
         .progress_chars("##-");
 
+    async_std::task::spawn(download_sanitizer(z.clone()));
+
     println!("zfsd is up an running.");
     while let Ok(evt) = rx.recv() {
         if let DebouncedEvent::Create(path) = evt {
@@ -79,12 +81,12 @@ async fn main() {
                 } else if parent.ends_with(UPLOAD_SUBDIR) {
                     log::info!(target: "zfsd","Fragmenting {:?}", &path);
                     let p = path.to_str().unwrap().to_string();
-                    let _ignore = async_std::task::spawn(
-                        zfs::fragment_from_digest(p).or_else(|e| async move {
+                    let _ignore = async_std::task::spawn(zfs::fragment_from_digest(p).or_else(
+                        |e| async move {
                             log::warn!("Failed to fragment due to: {}", e);
                             Ok::<(), String>(())
-                        }),
-                    );
+                        },
+                    ));
                     println!("Fragmenting and uploading {:?}", path.as_path());
                 } else {
                     let fpath = path.to_str().unwrap();

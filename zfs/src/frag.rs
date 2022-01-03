@@ -1,9 +1,9 @@
+use crate::*;
 use async_std::fs::{create_dir_all, File};
 use async_std::prelude::*;
 use checksum::crc::Crc;
 use std::path::Path;
 use std::path::PathBuf;
-use crate::*;
 
 pub async fn fragment(
     file_path: &str,
@@ -29,7 +29,11 @@ pub async fn fragment(
                         let mut f = match File::create(&fname).await {
                             Ok(f) => f,
                             Err(e) => {
-                                log::debug!("Error {:?} while creating the fragment: {}", e, &fname);
+                                log::debug!(
+                                    "Error {:?} while creating the fragment: {}",
+                                    e,
+                                    &fname
+                                );
                                 panic!("IO Error")
                             }
                         };
@@ -39,14 +43,18 @@ pub async fn fragment(
                     _ => break,
                 }
             }
+
             let digest = crate::FragmentationDigest {
                 name: zkey.into(),
+                size: file.metadata().await.unwrap().len(),
                 crc: checksum.crc64,
                 fragment_size,
                 fragments: fid,
             };
             log::debug!("{:?}", digest);
-            write_defrag_digest(&digest, &frag_path).await.map(|_| digest)
+            write_defrag_digest(&digest, &frag_path)
+                .await
+                .map(|_| digest)
         }
         Err(e) => Err(e.into()),
     }
@@ -65,7 +73,7 @@ pub async fn fragment_from_digest(path: String) -> Result<(), String> {
     log::debug!(target: "zfsd", "Uploading: {} as {}", &upload_spec.path, &upload_spec.key);
     if !std::path::Path::new(&upload_spec.path).exists() {
         log::warn!(target: "zfsd", "The file {} does not exit", &upload_spec.path);
-        return Ok(())
+        return Ok(());
     }
     crate::frag::fragment(
         &upload_spec.path,
@@ -79,14 +87,24 @@ pub async fn fragment_from_digest(path: String) -> Result<(), String> {
 
 pub async fn read_defrag_digest(base_path: &str) -> Result<FragmentationDigest, String> {
     let path: PathBuf = [base_path, crate::ZFS_DIGEST].iter().collect();
-    let bs = async_std::fs::read(path.as_path()).await.unwrap();
-    match serde_json::from_slice::<crate::FragmentationDigest>(&bs) {
-        Ok(digest) => Ok(digest),
-        Err(e) => Err(format!("{:?}", e))
-    }
+    log::debug!("read_defrag_digest: Trying to read: {:?}", &path.as_path());
+    let rbs = async_std::fs::read(path.as_path()).await;
+    log::debug!(
+        "read_defrag_digest: Trying to deserialize: {:?}",
+        &path.as_path()
+    );
+    rbs.map_err(|e| format!("{:?}", e)).and_then(|bs| {
+        match serde_json::from_slice::<crate::FragmentationDigest>(&bs) {
+            Ok(digest) => Ok(digest),
+            Err(e) => Err(format!("{:?}", e)),
+        }
+    })
 }
 
-pub async fn write_defrag_digest(digest: &FragmentationDigest, base_path: &str) -> Result<(), String> {
+pub async fn write_defrag_digest(
+    digest: &FragmentationDigest,
+    base_path: &str,
+) -> Result<(), String> {
     let bs = serde_json::to_vec(&digest).unwrap();
     let digest_path = format!("{}/{}", base_path, ZFS_DIGEST);
     let mut fdigest = File::create(Path::new(&digest_path)).await.unwrap();
@@ -99,8 +117,7 @@ pub async fn defragment(key: &str, dest: &str) -> Result<bool, String> {
     match read_defrag_digest(&fragments_path).await {
         Ok(digest) => {
             let dest_path = Path::new(dest);
-            let dest_dir =
-                dest_path.parent().unwrap().to_str().unwrap().to_string();
+            let dest_dir = dest_path.parent().unwrap().to_str().unwrap().to_string();
             create_dir_all(Path::new(&dest_dir)).await.unwrap();
 
             let mut f = File::create(Path::new(&dest)).await.unwrap();
@@ -111,12 +128,9 @@ pub async fn defragment(key: &str, dest: &str) -> Result<bool, String> {
             }
 
             drop(f);
-            let crc64 = Crc::new(dest)
-                .checksum()
-                .unwrap()
-                .crc64;
+            let crc64 = Crc::new(dest).checksum().unwrap().crc64;
             Ok(crc64 == digest.crc)
-        },
-        Err(e) => Err(e)
+        }
+        Err(e) => Err(e),
     }
 }
