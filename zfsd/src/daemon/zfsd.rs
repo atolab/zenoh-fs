@@ -2,6 +2,7 @@ use clap::{App, Arg};
 use futures::TryFutureExt;
 use indicatif::ProgressStyle;
 use notify::{DebouncedEvent, RecursiveMode, Watcher};
+use zenoh::prelude::{Receiver, ZFuture};
 use std::fs::create_dir_all;
 use std::{sync::mpsc::channel, time::Duration};
 use zenoh::config::Config;
@@ -53,6 +54,7 @@ async fn main() {
     let zconf = parse_args();
 
     let z = std::sync::Arc::new(zenoh::open(zconf).await.unwrap());
+    let pid = z.info().await.get(&zenoh::info::ZN_INFO_PID_KEY).expect("zfsd failed to retrieve it's zenoh pid!").clone();
     init().expect("zfsd failed to initalise!");
     let (tx, rx) = channel();
     let mut watcher = notify::watcher(tx, Duration::from_secs(FS_EVT_DELAY)).unwrap();
@@ -71,6 +73,18 @@ async fn main() {
         .progress_chars("##-");
 
     async_std::task::spawn(download_sanitizer(z.clone()));
+
+    async_std::task::spawn_blocking({
+        let z = z.clone();
+        move || {
+            let mut sub = z.subscribe(&format!("/@/zfs/{}/config/**", pid)).wait().expect(&format!("zfsd failed to subscribe to /@/zfs/{}/config/**", pid));
+            while let Ok(sample) = sub.receiver().recv() {
+                let conf_key = sample.key_expr.as_str().split('/').last().unwrap();
+                let conf_val = String::from_utf8_lossy(&sample.value.payload.contiguous()).to_string();
+                let _ = z.config().wait().insert_json(&conf_key, &conf_val);
+            }
+        }
+    });
 
     println!("zfsd is up an running.");
     while let Ok(evt) = rx.recv() {
