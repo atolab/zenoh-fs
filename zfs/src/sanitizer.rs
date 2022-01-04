@@ -101,7 +101,7 @@ pub async fn download_sanitizer(z: Arc<zenoh::Session>) {
                                 log::debug!("Gaps delta is :\n\t{:?}", delta);
                                 if delta > 0 {
                                     log::debug!("Udating tide and gaps");
-                                    (*reg_entry).tide_level = *filtered_gaps.get(0).unwrap();
+                                    (*reg_entry).tide_level = *filtered_gaps.get(0).or_else(0);
                                     (*reg_entry).gap_nun = new_gap_num;
                                     // registry.insert(
                                     //     entry.path().to_str().unwrap().into(),
