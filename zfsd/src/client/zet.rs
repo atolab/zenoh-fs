@@ -1,5 +1,5 @@
 use clap::{App, Arg};
-use zfs::{DownloadDigest, zfs_download_digest_dir};
+use zfs::{zfs_download_digest_dir, DownloadDigest};
 
 fn write_download_digest(digest: DownloadDigest) -> std::io::Result<()> {
     let uid = uuid::Uuid::new_v4();
@@ -11,28 +11,34 @@ fn write_download_digest(digest: DownloadDigest) -> std::io::Result<()> {
     }
     Ok(())
 }
-fn parse_args() -> (String, String) {
-    let args = App::new("zut: zfs utility to upload files.")
+fn parse_args() -> (String, String, usize) {
+    let args = App::new("zet: zfs utility to download files.")
         .arg(
-            Arg::from_usage("-p, --path[PATH]...  'The path for the file to upload.'")
+            Arg::from_usage("-p, --path[PATH]...  'The path to download the file to.'")
                 .required(true),
         )
         .arg(
             Arg::from_usage(
-                "-k, --key=[KEY]...  'The key under which this file will be stored in zfs'",
+                "-k, --key=[KEY]...  'The key of the file to download.'",
             )
             .required(true),
+        )
+        .arg(
+            Arg::from_usage(
+                "-t, --tempo=[MSEC]...  'The time in msec that should be waited before downloading the next fragment (0 means as fast as possible).'",
+            ).default_value("0"),
         )
         .get_matches();
 
     (
         args.value_of("path").unwrap().to_string(),
         args.value_of("key").unwrap().to_string(),
+        args.value_of("tempo").unwrap().parse().unwrap(),
     )
 }
 
 fn main() {
-    let (path, key) = parse_args();
-    let digest = DownloadDigest { path, key, pace: 0 };
+    let (path, key, pace) = parse_args();
+    let digest = DownloadDigest { path, key, pace };
     write_download_digest(digest).unwrap();
 }

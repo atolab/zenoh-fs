@@ -6,13 +6,14 @@ pub const FS_EVT_DELAY: u64 = 1;
 pub const SANITIZER_PERIOD: Duration = Duration::from_secs(3);
 pub const GAP_DOWNLOAD_SCHEDULE: usize = 32;
 pub const STUCK_CYCLES_RESET: usize = 3;
+pub const MAX_ACCELERATION: usize = 33;
 
 pub static ZFS_DIGEST: &str = "zfs-digest";
 pub const DOWNLOAD_SUBDIR: &str = "download";
 pub const UPLOAD_SUBDIR: &str = "upload";
 pub const FRAGS_SUBDIR: &str = "frags";
 pub const DIGEST_SUBDIR: &str = "digest";
-pub const FRAGMENT_SIZE: usize = 4 * 1024;
+pub const FRAGMENT_SIZE: usize = 32 * 1024;
 
 ///
 /// The ZFS structure is as follows:
@@ -28,6 +29,7 @@ pub const FRAGMENT_SIZE: usize = 4 * 1024;
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FragmentationDigest {
     pub name: String,
+    pub size: u64,
     pub crc: u64,
     pub fragment_size: usize,
     pub fragments: u32,
@@ -37,13 +39,14 @@ pub struct FragmentationDigest {
 pub struct UploadDigest {
     pub path: String,
     pub key: String,
+    pub fragment_size: usize,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DownloadDigest {
     pub key: String,
     pub path: String,
-    pub pace: u32,
+    pub pace: usize,
 }
 
 #[derive(Debug)]
@@ -89,12 +92,12 @@ pub fn zfs_download_frags_dir() -> String {
 
 pub fn zfs_download_frags_dir_for_key(k: &str) -> String {
     k.chars()
-        .nth(0)
-        .and_then(|c| {
+        .next()
+        .map(|c| {
             if c == '/' {
-                Some(format!("{}{}", zfs_download_frags_dir(), k))
+                format!("{}{}", zfs_download_frags_dir(), k)
             } else {
-                Some(format!("{}/{}", zfs_download_frags_dir(), k))
+                format!("{}/{}", zfs_download_frags_dir(), k)
             }
         })
         .unwrap()
@@ -102,12 +105,12 @@ pub fn zfs_download_frags_dir_for_key(k: &str) -> String {
 
 pub fn zfs_upload_frags_dir_for_key(k: &str) -> String {
     k.chars()
-        .nth(0)
-        .and_then(|c| {
+        .next()
+        .map(|c| {
             if c == '/' {
-                Some(format!("{}{}", zfs_upload_frags_dir(), k))
+                format!("{}{}", zfs_upload_frags_dir(), k)
             } else {
-                Some(format!("{}/{}", zfs_upload_frags_dir(), k))
+                format!("{}/{}", zfs_upload_frags_dir(), k)
             }
         })
         .unwrap()

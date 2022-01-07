@@ -4,26 +4,35 @@ use indicatif::ProgressStyle;
 use notify::{DebouncedEvent, RecursiveMode, Watcher};
 use std::fs::create_dir_all;
 use std::{sync::mpsc::channel, time::Duration};
-use zenoh::net::*;
-use zenoh::Properties;
+use zenoh::config::Config;
 use zfs::*;
 
-fn parse_args() -> Properties {
+fn parse_args() -> zenoh::config::Config {
     let args = App::new("zenoh distributed file sytem")
         .arg(Arg::from_usage(
-            "-s, --fragment-size=[size]...  'The maximun size used for fragmenting for files.'",
+            "-m, --mode=[MODE] 'The zenoh session mode (peer by default)."
+        ).possible_values(&["peer", "client"]))
+        .arg(Arg::from_usage(
+            "-c, --config=[FILE]  'A zenoh configuration file.'",
+        ))
+        .arg(Arg::from_usage(
+            "-s, --fragment-size=[size]  'The maximun size used for fragmenting for files.'",
         ))
         .arg(Arg::from_usage(
             "-r, --remote-endpoints=[ENDPOINTS]...  'The locators for a remote zenoh endpoint such as a routers'",
         ))
         .get_matches();
 
-    let mut config = Properties::default();
+    let mut config = args
+        .value_of("config")
+        .map_or_else(Config::default, |conf_file| {
+            Config::from_file(conf_file).unwrap()
+        });
+    if let Some(Ok(mode)) = args.value_of("mode").map(|mode| mode.parse()) {
+        config.set_mode(Some(mode)).unwrap();
+    }
     if let Some(values) = args.values_of("remote-endpoints") {
-        config.insert(
-            "remote-endpoints".to_string(),
-            values.collect::<Vec<&str>>().join(","),
-        );
+        config.peers.extend(values.map(|v| v.parse().unwrap()));
     }
 
     config
@@ -43,11 +52,10 @@ async fn main() {
     env_logger::init();
     let zconf = parse_args();
 
-    let z = std::sync::Arc::new(open(zconf.into()).await.unwrap());
+    let z = std::sync::Arc::new(zenoh::open(zconf).await.unwrap());
     init().expect("zfsd failed to initalise!");
     let (tx, rx) = channel();
     let mut watcher = notify::watcher(tx, Duration::from_secs(FS_EVT_DELAY)).unwrap();
-    let fragment_size = FRAGMENT_SIZE;
     watcher
         .watch(&zfs_download_digest_dir(), RecursiveMode::NonRecursive)
         .unwrap();
@@ -61,6 +69,8 @@ async fn main() {
     let sty = ProgressStyle::default_bar()
         .template("[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}")
         .progress_chars("##-");
+
+    async_std::task::spawn(download_sanitizer(z.clone()));
 
     println!("zfsd is up an running.");
     while let Ok(evt) = rx.recv() {
@@ -85,8 +95,12 @@ async fn main() {
                 } else if parent.ends_with(UPLOAD_SUBDIR) {
                     log::info!(target: "zfsd","Fragmenting {:?}", &path);
                     let p = path.to_str().unwrap().to_string();
-                    let _ignore =
-                        async_std::task::spawn(zfs::fragment_from_digest(p, fragment_size));
+                    let _ignore = async_std::task::spawn(zfs::fragment_from_digest(p).or_else(
+                        |e| async move {
+                            log::warn!("Failed to fragment due to: {}", e);
+                            Ok::<(), String>(())
+                        },
+                    ));
                     println!("Fragmenting and uploading {:?}", path.as_path());
                 } else {
                     let fpath = path.to_str().unwrap();
