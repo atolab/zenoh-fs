@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use crate::*;
 use indicatif::{ProgressBar, ProgressStyle};
+use zenoh::publication::CongestionControl;
 
 use zenoh::query::*;
 use zenoh::queryable;
@@ -11,7 +12,10 @@ use zenoh::Session;
 pub async fn upload_fragment(z: &Session, path: &str, key: &str) {
     let path = PathBuf::from(path);
     let bs = std::fs::read(path.as_path()).unwrap();
-    z.put(key, bs).await.unwrap();
+    z.put(key, bs)
+        .congestion_control(CongestionControl::Block)
+        .await
+        .unwrap();
 }
 
 pub async fn download_fragment(z: Arc<Session>, key: String, n: u32) -> Result<(), String> {
