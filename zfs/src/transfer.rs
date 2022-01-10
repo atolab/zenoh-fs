@@ -51,7 +51,7 @@ pub async fn download_fragment(z: Arc<Session>, key: String, n: u32) -> Result<(
         Err(format!("Unable to retrieve fragment: {}", &frag_key))
     }
 }
-pub async fn download_fragmentation_digest(
+pub async fn get_fragmentation_digest(
     z: std::sync::Arc<Session>,
     digest_key: &str,
 ) -> Result<FragmentationDigest, String> {
@@ -73,7 +73,16 @@ pub async fn download_fragmentation_digest(
         Err("Unable to retriefe manifest".to_string())
     }
 }
+pub async fn download_fragmentation_digest(z: std::sync::Arc<Session>, key: &str) -> Result<FragmentationDigest, String> {
+    let frag_digest = format!("{}/{}", key, ZFS_DIGEST);
+    let digest = get_fragmentation_digest(z.clone(), &frag_digest).await?;
 
+    let frags_dir = zfs_download_frags_dir_for_key(key);
+    async_std::fs::create_dir_all(std::path::Path::new(&frags_dir))
+        .await
+        .unwrap();
+    write_defrag_digest(&digest, &frags_dir).await.map(|_| digest)
+}
 pub async fn download(
     z: std::sync::Arc<Session>,
     path_buf: PathBuf,
@@ -95,7 +104,7 @@ pub async fn download(
     }
 
     let frag_digest = format!("{}/{}", download_spec.key, ZFS_DIGEST);
-    let digest = download_fragmentation_digest(z.clone(), &frag_digest).await?;
+    let digest = get_fragmentation_digest(z.clone(), &frag_digest).await?;
 
     let frags_dir = zfs_download_frags_dir_for_key(&download_spec.key);
     async_std::fs::create_dir_all(std::path::Path::new(&frags_dir))

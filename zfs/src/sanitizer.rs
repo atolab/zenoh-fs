@@ -146,33 +146,35 @@ pub async fn download_sanitizer(z: Arc<zenoh::Session>) {
                         let digest = zfs_read_download_digest_from(entry.path().as_path())
                             .await
                             .unwrap();
-                        let mut gaps: Vec<usize> = compute_download_gaps(&digest)
-                            .await
-                            .unwrap()
-                            .into_iter()
-                            .collect();
-                        gaps.sort_unstable();
 
-                        if !gaps.is_empty() {
-                            let tide_level = *gaps.get(0).unwrap();
-                            let gap_nun = gaps.len();
-                            let sre = SanitizerRegistryEntry {
-                                digest: Arc::new(digest),
-                                tide_level,
-                                gap_nun,
-                                stuck_cycles: 0,
-                            };
-                            log::debug!(
+                        if let Ok(s_gaps) = compute_download_gaps(&digest).await {
+                            let mut gaps: Vec<usize> = s_gaps.into_iter().collect();
+                            gaps.sort_unstable();
+
+                            if !gaps.is_empty() {
+                                let tide_level = *gaps.get(0).unwrap();
+                                let gap_nun = gaps.len();
+                                let sre = SanitizerRegistryEntry {
+                                    digest: Arc::new(digest),
+                                    tide_level,
+                                    gap_nun,
+                                    stuck_cycles: 0,
+                                };
+                                log::debug!(
                                 "Created registry entry {:?} exists for  <{:?}>",
                                 &sre,
                                 &entry.path()
                             );
-                            registry.insert(entry.path().to_str().unwrap().into(), sre);
+                                registry.insert(entry.path().to_str().unwrap().into(), sre);
+                            } else {
+                                log::debug!("Sanitizer cleaning up download {:?}", &digest);
+                                cleanup_download(&digest, entry.path().to_str().unwrap())
+                                    .await
+                                    .unwrap();
+                            }
                         } else {
-                            log::debug!("Sanitizer cleaning up download {:?}", &digest);
-                            cleanup_download(&digest, entry.path().to_str().unwrap())
-                                .await
-                                .unwrap();
+                            log::debug!("Unable compute gaps, perhaps the digest is missing, trying to download it again.");
+                            // download_fragmentation_digest(z.clone(), download_f);
                         }
                     }
                 }
