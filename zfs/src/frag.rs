@@ -1,9 +1,9 @@
 use crate::*;
-use async_std::fs::{create_dir_all, File};
-use async_std::prelude::*;
+use tokio::fs::{create_dir_all, File};
 use checksum::crc::Crc;
 use std::path::Path;
 use std::path::PathBuf;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 pub async fn fragment(
     file_path: &str,
@@ -25,7 +25,7 @@ pub async fn fragment(
             loop {
                 match file.read(&mut bs).await {
                     Ok(n) if n > 0 => {
-                        let fname = format!("{}/{}", &frag_path, fid.to_string());
+                        let fname = format!("{}/{}", &frag_path, fid);
                         let mut f = match File::create(&fname).await {
                             Ok(f) => f,
                             Err(e) => {
@@ -88,7 +88,7 @@ pub async fn fragment_from_digest(path: String) -> Result<(), String> {
 pub async fn read_defrag_digest(base_path: &str) -> Result<FragmentationDigest, String> {
     let path: PathBuf = [base_path, crate::ZFS_DIGEST].iter().collect();
     log::debug!("read_defrag_digest: Trying to read: {:?}", &path.as_path());
-    let rbs = async_std::fs::read(path.as_path()).await;
+    let rbs = tokio::fs::read(path.as_path()).await;
     log::debug!(
         "read_defrag_digest: Trying to deserialize: {:?}",
         &path.as_path()
@@ -108,7 +108,7 @@ pub async fn write_defrag_digest(
     let bs = serde_json::to_vec(&digest).unwrap();
     let digest_path = format!("{}/{}", base_path, ZFS_DIGEST);
     let mut fdigest = File::create(Path::new(&digest_path)).await.unwrap();
-    fdigest.write(&bs).await.unwrap();
+    fdigest.write_all(&bs).await.unwrap();
     Ok(())
 }
 pub async fn defragment(key: &str, dest: &str) -> Result<bool, String> {
@@ -124,7 +124,7 @@ pub async fn defragment(key: &str, dest: &str) -> Result<bool, String> {
             for i in 0..digest.fragments {
                 let frag_path = format!("{}/{}", fragments_path, i);
                 let bs = std::fs::read(Path::new(&frag_path)).unwrap();
-                f.write(&bs).await.unwrap();
+                f.write_all(&bs).await.unwrap();
             }
 
             drop(f);

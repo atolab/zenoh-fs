@@ -10,7 +10,8 @@ async fn cleanup_download(digest: &DownloadDigest, download_manifest: &str) -> R
     if target.exists() && fmanif_exists {
         let defrag_digest = read_defrag_digest(&frags_path).await.unwrap();
         let size = target.metadata().unwrap().len();
-        async_std::task::sleep(Duration::from_secs(2 * FS_EVT_DELAY)).await;
+
+        tokio::time::sleep(Duration::from_secs(2 * FS_EVT_DELAY)).await;
         if size == defrag_digest.size {
             let frags_path = zfs_download_frags_dir_for_key(&digest.key);
             let _ignore = std::fs::remove_dir_all(&frags_path);
@@ -72,7 +73,7 @@ pub async fn download_sanitizer(z: Arc<zenoh::Session>) {
     let d3 = zfs_download_digest_dir();
     let dpath = std::path::Path::new(&d3);
     loop {
-        async_std::task::sleep(SANITIZER_PERIOD).await;
+        tokio::time::sleep(SANITIZER_PERIOD).await;
         log::debug!("Running Sanitizer...");
         if let Ok(entries) = dpath.read_dir() {
             for entry in entries.flatten() {
@@ -101,19 +102,19 @@ pub async fn download_sanitizer(z: Arc<zenoh::Session>) {
                                 log::debug!("Gaps delta is :\n\t{:?}", delta);
                                 if delta > 0 {
                                     log::debug!("Udating tide and gaps");
-                                    (*reg_entry).tide_level = *filtered_gaps.get(0).unwrap_or(&0);
-                                    (*reg_entry).gap_nun = new_gap_num;
+                                    reg_entry.tide_level = *filtered_gaps.first().unwrap_or(&0);
+                                    reg_entry.gap_nun = new_gap_num;
                                     // registry.insert(
                                     //     entry.path().to_str().unwrap().into(),
                                     //     reg_entry.clone(),
                                     // );
                                 } else {
-                                    (*reg_entry).stuck_cycles += 1;
+                                    reg_entry.stuck_cycles += 1;
                                     if reg_entry.stuck_cycles % STUCK_CYCLES_RESET == 0 {
                                         log::debug!(
                                             "Gaps recovery for {:?} seems to have stalled, this may be due to process restart of disconnections. Restarting fragment sanitiser.",
                                             &reg_entry.digest.key);
-                                        (*reg_entry).tide_level = 0;
+                                        reg_entry.tide_level = 0;
                                         let n = std::cmp::min(
                                             gaps.len(),
                                             GAP_DOWNLOAD_SCHEDULE
@@ -123,14 +124,14 @@ pub async fn download_sanitizer(z: Arc<zenoh::Session>) {
                                         );
                                         for i in 0..n {
                                             reg_entry.tide_level = *gaps.get(i).unwrap();
-                                            async_std::task::spawn(download_fragment(
+                                            tokio::task::spawn(download_fragment(
                                                 z.clone(),
                                                 reg_entry.digest.key.clone(),
                                                 reg_entry.tide_level as u32,
                                             ));
                                         }
                                     } else {
-                                        (*reg_entry).stuck_cycles += 1;
+                                        reg_entry.stuck_cycles += 1;
                                         log::debug!(
                                             "Gaps recovery for {:?} is unusually slow -- no progress for the past {} sanitiser cycles",
                                             &reg_entry.digest.key, reg_entry.stuck_cycles
@@ -154,7 +155,7 @@ pub async fn download_sanitizer(z: Arc<zenoh::Session>) {
                         gaps.sort_unstable();
 
                         if !gaps.is_empty() {
-                            let tide_level = *gaps.get(0).unwrap();
+                            let tide_level = *gaps.first().unwrap();
                             let gap_nun = gaps.len();
                             let sre = SanitizerRegistryEntry {
                                 digest: Arc::new(digest),
@@ -184,7 +185,7 @@ pub async fn download_sanitizer(z: Arc<zenoh::Session>) {
 }
 pub async fn upload_sanitizer() {
     loop {
-        async_std::task::sleep(Duration::from_secs(5)).await;
+        tokio::time::sleep(Duration::from_secs(5)).await;
         // async_std::fs::read_dir()
     }
 }

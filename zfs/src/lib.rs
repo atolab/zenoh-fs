@@ -124,7 +124,7 @@ pub fn zfs_upload_frag_dir_to_key(path: &str) -> Option<String> {
 pub async fn zfs_read_download_digest_from(
     path: &std::path::Path,
 ) -> Result<DownloadDigest, String> {
-    async_std::fs::read(path)
+    tokio::fs::read(path)
         .await
         .map_err(zfs_err2str)
         .and_then(|bs| serde_json::from_slice::<crate::DownloadDigest>(&bs).map_err(zfs_err2str))
