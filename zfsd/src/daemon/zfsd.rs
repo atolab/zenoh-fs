@@ -91,7 +91,8 @@ async fn main() {
                             Some(_) => {
                                 log::debug!(target: "zfsd", "Handling path: {}", fpath);
                                 match zfs_upload_frag_dir_to_key(fpath) {
-                                    Some(key) => {
+                                    Some(key_suffix) => {
+                                        let key = format!("{}/{}", zfs_upload_frags_key_prefix(), key_suffix);
                                         log::debug!(target: "zfsd", "Uploading fragment : {:?} as {:?}", path, &key);
                                         upload_fragment(&z, fpath, &key).await;
                                         log::debug!(target: "zfsd", "Completed  upload of: {:?} as {:?}", path, &key);
