@@ -90,6 +90,9 @@ pub fn zfs_upload_frags_key_prefix() -> String {
     format!("zfs/{}/{}", FRAGS_SUBDIR, UPLOAD_SUBDIR)
 }
 
+pub fn zfs_upload_frags_digest_key(key: &str) -> String {
+    format!("zfs/{}/{}/{}/{}", FRAGS_SUBDIR, UPLOAD_SUBDIR, key, ZFS_DIGEST)
+}
 pub fn zfs_download_frags_dir() -> String {
     format!("{}/{}/{}", zfs_home(), FRAGS_SUBDIR, DOWNLOAD_SUBDIR)
 }

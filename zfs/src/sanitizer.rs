@@ -1,6 +1,7 @@
 use crate::*;
 use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
+use zenoh::Session;
 
 async fn cleanup_download(digest: &DownloadDigest, download_manifest: &str) -> Result<(), String> {
     // Check first if the file has been really created
@@ -29,14 +30,10 @@ async fn cleanup_download(digest: &DownloadDigest, download_manifest: &str) -> R
     Ok(())
 }
 
-async fn compute_download_gaps(digest: &DownloadDigest) -> Result<BTreeSet<usize>, String> {
+async fn compute_download_gaps(z: std::sync::Arc<Session>, digest: &DownloadDigest) -> Result<BTreeSet<usize>, String> {
     let frags_path = zfs_download_frags_dir_for_key(&digest.key);
-    if let Ok(defrag_digest) = read_defrag_digest(&frags_path).await {
-        let fmanif_exists =
-            std::path::Path::new(&format!("{}/{}", &frags_path, ZFS_DIGEST)).exists();
-        if !fmanif_exists {
-            return Err("There is no manifest, this gaps cannot be computed".to_string());
-        }
+    let frag_digest_key = zfs_upload_frags_digest_key(&digest.key);
+    if let Ok(defrag_digest) = download_fragmentation_digest(z, &frag_digest_key).await {
         let mut frag_set = BTreeSet::new();
         for i in 0..defrag_digest.fragments {
             frag_set.insert(i as usize);
@@ -61,6 +58,58 @@ async fn compute_download_gaps(digest: &DownloadDigest) -> Result<BTreeSet<usize
     }
 }
 
+// async fn get_defrag_fragment(z: Arc<zenoh::Session>, key: &str) -> Result<FragmentationDigest, String> {
+//     let replies = z.get(&key)
+//         .target(QueryTarget::DEFAULT)
+//         .await
+//         .unwrap();
+//     if let Ok(reply) = replies.recv_async().await {
+//         if let Ok(r) = reply.result() {
+//             let bs = r.payload().to_bytes();
+//             let digest = serde_json::from_slice::<FragmentationDigest>(&bs).unwrap();
+//             Ok(digest)
+//         } else {
+//             Err("Unable to retriefe manifest".to_string())
+//         }
+//     } else {
+//         Err("Unable to retriefe manifest".to_string())
+//     }
+// }
+// async fn compute_download_gaps2(z: Arc<zenoh::Session>, digest: &DownloadDigest) -> Result<BTreeSet<usize>, String> {
+//     let frag_digest_key = zfs_upload_frags_digest_key(&digest.key);
+//
+// // let frags_path = zfs_download_frags_dir_for_key(&digest.key);
+//     // if let Ok(defrag_digest) = read_defrag_digest(&frags_path).await {
+//     //     let fmanif_exists =
+//     //         std::path::Path::new(&format!("{}/{}", &frags_path, ZFS_DIGEST)).exists();
+//     //     if !fmanif_exists {
+//     //         return Err("There is no manifest, this gaps cannot be computed".to_string());
+//     //     }
+//     //     let mut frag_set = BTreeSet::new();
+//     //     for i in 0..defrag_digest.fragments {
+//     //         frag_set.insert(i as usize);
+//     //     }
+//     //     let path = std::path::Path::new(&frags_path);
+//     //     if let Ok(entries) = path.read_dir() {
+//     //         for entry in entries.flatten() {
+//     //             let name = entry
+//     //                 .path()
+//     //                 .file_name()
+//     //                 .and_then(|s| s.to_str())
+//     //                 .unwrap()
+//     //                 .to_string();
+//     //             if let Ok(n) = name.parse() {
+//     //                 frag_set.remove(&n);
+//     //             }
+//     //         }
+//     //     }
+//     //     Ok(frag_set)
+//     // } else {
+//     //     Err(format!("Unable to read defrag digest for {:?}", &digest))
+//     // }
+//     Err(format!("Unable to read defrag digest for {:?}", &digest))
+// }
+
 fn compute_acceleration_factor(stuck_cycles: usize) -> usize {
     let r = (stuck_cycles / STUCK_CYCLES_RESET) + 1;
     let a = std::cmp::max(1, r / 2);
@@ -81,7 +130,7 @@ pub async fn download_sanitizer(z: Arc<zenoh::Session>) {
                 match registry.get_mut(entry.path().to_str().unwrap()) {
                     Some(reg_entry) => {
                         log::debug!("Registry {:?} exists for  <{:?}>", &reg_entry, &entry);
-                        if let Ok(gap_set) = compute_download_gaps(&reg_entry.digest).await {
+                        if let Ok(gap_set) = compute_download_gaps(z.clone(), &reg_entry.digest).await {
                             let mut gaps: Vec<usize> = gap_set.into_iter().collect();
                             if gaps.is_empty() {
                                 log::debug!("Found <<NO GAPS>> for {:?}", &reg_entry.digest);
@@ -149,7 +198,7 @@ pub async fn download_sanitizer(z: Arc<zenoh::Session>) {
                             .await
                             .unwrap();
                         log::info!(target: "sanitizer", "Download Digest: {:?}", &digest);
-                        let mut gaps: Vec<usize> = compute_download_gaps(&digest)
+                        let mut gaps: Vec<usize> = compute_download_gaps(z.clone(), &digest)
                             .await
                             .unwrap()
                             .into_iter()
