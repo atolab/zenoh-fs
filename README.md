@@ -49,8 +49,8 @@ manifest file containing the following content:
         "key": "/zfs/bin/zfsd"
     }
 
-Let's safe this file as ```upload-zfsd``` and then just copy it to ```~/.zfs/upload```.
-That's it, ```zenoh-fs``` will take care to fragmenting it and uploading on the 
+Let's save this file as ```upload-zfsd``` and then just copy it to ```~/.zfs/upload```.
+That's it, ```zenoh-fs``` will take care of fragmenting it and uploading on the 
 distributed storage.
 
 ### Downloading a file

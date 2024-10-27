@@ -39,12 +39,8 @@ async fn main() {
     watcher
         .watch(
             std::path::Path::new(&zfs_upload_frags_dir()),
-            RecursiveMode::NonRecursive)
+            RecursiveMode::Recursive)
         .unwrap();
-
-    // let sty = indicatif::ProgressStyle::default_bar()
-    //     .template("[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}")
-    //     .progress_chars("##-");
 
     tokio::task::spawn(download_sanitizer(z.clone()));
 

@@ -35,7 +35,7 @@ async fn compute_download_gaps(digest: &DownloadDigest) -> Result<BTreeSet<usize
         let fmanif_exists =
             std::path::Path::new(&format!("{}/{}", &frags_path, ZFS_DIGEST)).exists();
         if !fmanif_exists {
-            return Err("There is manifest, this gaps cannot be computed".to_string());
+            return Err("There is no manifest, this gaps cannot be computed".to_string());
         }
         let mut frag_set = BTreeSet::new();
         for i in 0..defrag_digest.fragments {
@@ -144,9 +144,11 @@ pub async fn download_sanitizer(z: Arc<zenoh::Session>) {
                         }
                     }
                     None => {
+                        log::info!(target: "sanitizer", "Download Digest for key: {:?}", &entry.path().as_path());
                         let digest = zfs_read_download_digest_from(entry.path().as_path())
                             .await
                             .unwrap();
+                        log::info!(target: "sanitizer", "Download Digest: {:?}", &digest);
                         let mut gaps: Vec<usize> = compute_download_gaps(&digest)
                             .await
                             .unwrap()
