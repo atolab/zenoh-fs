@@ -17,10 +17,15 @@ If you want to test on your standalone machine, the simplest way is to start a
 To install zenoh follow the instructions available [here](https://github.com/eclipse-zenoh/zenoh).
 You'll also need to install the filesystem back-end which is available [here](https://github.com/eclipse-zenoh/zenoh-backend-filesystem)
 
+Make sure that all plugin libraries are available under:
+
+    ~/.zenoh/lib
+
 Then simply start the zenoh router using the following command:
 
-    $ zenohd --plugin=$HOME/.zenoh/lib/libzplugin_storages.dylib
+    $ /path/to/zenoh/zenohd -c zenoh.json5
 
+This command will setup the proper storage filesystem. 
 
 ## Building ZFS
 In order to build zfs you need to install rust. To do so please follow the \
@@ -33,7 +38,6 @@ Once installed ```rust``` then do:
 ### Starting zfsd
 Assuming you have compiled from sources  then simply do:
 
-    zenoh-fs$ ./zfs.sh # This will setup the proper storage on zenoh 
     zenoh-fs$ ./target/release/zfsd # assuming you are OK using ~/.zfs as home 
 
 ### Uploading a file 

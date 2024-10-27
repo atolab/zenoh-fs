@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 use std::{fmt::Write};
+use log::debug;
 use crate::*;
 use zenoh::qos::CongestionControl;
 
@@ -9,7 +10,7 @@ use zenoh::query::*;
 use zenoh::Session;
 pub async fn upload_fragment(z: &Session, path: &str, key: &str) {
     let path = PathBuf::from(path);
-    let bs = std::fs::read(path.as_path()).unwrap();
+    let bs = std::fs::read(path.as_path()).expect(&format!("path: {} should be valid", &path.to_string_lossy()));
     z.put(key, bs)
         .congestion_control(CongestionControl::Block)
         .await

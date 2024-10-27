@@ -91,29 +91,33 @@ pub fn zfs_download_frags_dir() -> String {
 }
 
 pub fn zfs_download_frags_dir_for_key(k: &str) -> String {
-    k.chars()
-        .next()
-        .map(|c| {
-            if c == '/' {
-                format!("{}{}", zfs_download_frags_dir(), k)
-            } else {
-                format!("{}/{}", zfs_download_frags_dir(), k)
-            }
-        })
-        .unwrap()
+    format!("{}/{}", zfs_upload_frags_dir(), k)
+
+    // k.chars()
+    //     .next()
+    //     .map(|c| {
+    //         if c == '/' {
+    //             format!("{}{}", zfs_download_frags_dir(), k)
+    //         } else {
+    //             format!("{}/{}", zfs_download_frags_dir(), k)
+    //         }
+    //     })
+    //     .unwrap()
 }
 
 pub fn zfs_upload_frags_dir_for_key(k: &str) -> String {
-    k.chars()
-        .next()
-        .map(|c| {
-            if c == '/' {
-                format!("{}{}", zfs_upload_frags_dir(), k)
-            } else {
-                format!("{}/{}", zfs_upload_frags_dir(), k)
-            }
-        })
-        .unwrap()
+    // Key expression have never begins with a "/"
+    format!("{}/{}", zfs_upload_frags_dir(), k)
+    // k.chars()
+    //     .next()
+    //     .map(|c| {
+    //         if c == '/' {
+    //             format!("{}{}", zfs_upload_frags_dir(), k)
+    //         } else {
+    //             format!("{}/{}", zfs_upload_frags_dir(), k)
+    //         }
+    //     })
+    //     .unwrap()
 }
 
 pub fn zfs_upload_frag_dir_to_key(path: &str) -> Option<String> {

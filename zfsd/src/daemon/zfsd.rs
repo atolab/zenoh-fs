@@ -39,7 +39,7 @@ async fn main() {
     watcher
         .watch(
             std::path::Path::new(&zfs_upload_frags_dir()),
-            RecursiveMode::Recursive)
+            RecursiveMode::NonRecursive)
         .unwrap();
 
     // let sty = indicatif::ProgressStyle::default_bar()
@@ -50,10 +50,19 @@ async fn main() {
 
     println!("zfsd is up an running.");
     while let Ok(r) = rx.recv() {
+        // log::info!(target: "zfsd", "Downloading {:?}", &path);
+
         if let Ok(evt) = r {
-            if evt.kind.is_create() {
+            if evt.kind.is_create() && evt.paths[0].is_dir() {
+                log::info!(target: "zfsd", "Received Create Event {:?}", &evt);
+                log::info!(target: "zfsd", "Ignoring as it is a directory {:?}", &evt);
+            }
+            else if evt.kind.is_create() && evt.paths[0].is_file() {
+                log::info!(target: "zfsd", "Received Create Event {:?}", &evt);
                 let path = evt.paths[0].clone();
                 let parent = path.parent().unwrap();
+                log::info!(target: "zfsd", "Parent is {:?}", parent);
+
 
                 if parent.ends_with(DOWNLOAD_SUBDIR) {
                     log::info!(target: "zfsd", "Downloading {:?}", &path);
@@ -78,7 +87,7 @@ async fn main() {
                             Ok::<(), String>(())
                         },
                     ));
-                    println!("Fragmenting and uploading {:?}", path.as_path());
+                    log::info!(target: "zfsd", "Fragmenting and uploading {:?}", path.as_path());
                 } else {
                     let fpath = path.to_str().unwrap();
                     if !fpath.contains(DOWNLOAD_SUBDIR) {
