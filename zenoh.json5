@@ -1,23 +1,29 @@
 {
   plugins: {
     // configuration of "storages" plugin:
-    storages: {
-      backends: {
+    storage_manager: {
+      volumes: {
         // configuration of a "fs" backend (the "zbackend_fs" library will be loaded at startup)
-        fs: {
-          storages: {
-            // configuration of the "zfs" storage using the "fs" backend
-            zfs: {
-              // the key expression this storage will subscribes to
-              key_expr: "/zfs/**",
-              // this prefix will be stripped from the received key when converting to file path
-              strip_prefix: "/zfs",
-              // the key/values will be stored as files within this directory (relative to ${ZBACKEND_FS_ROOT})
-              dir: "zfs"
-            }
+        fs: {},
+      },
+      storages: {
+        // configuration of the "zfs" storage using the "fs" backend
+        zfs: {
+          // the key expression this storage will subscribes to
+          key_expr: "zfs/**",
+          // this prefix will be stripped from the received key when converting to file path
+          strip_prefix: "zfs",
+          // the key/values will be stored as files within this directory (relative to ${ZBACKEND_FS_ROOT})
+          volume: {
+            id: "fs",
+            dif: "~/.zfs"
           }
         }
       }
+    },
+    rest: {
+      http_port: 8000
     }
   }
 }
+
