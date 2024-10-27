@@ -16,7 +16,7 @@
           // the key/values will be stored as files within this directory (relative to ${ZBACKEND_FS_ROOT})
           volume: {
             id: "fs",
-            dif: "~/.zfs"
+            dir: "~/.zfs"
           }
         }
       }
