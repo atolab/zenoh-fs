@@ -86,45 +86,56 @@ pub fn zfs_upload_frags_dir() -> String {
     format!("{}/{}/{}", zfs_home(), FRAGS_SUBDIR, UPLOAD_SUBDIR)
 }
 
+pub fn zfs_upload_frags_key_prefix() -> String {
+    format!("zfs/{}/{}", FRAGS_SUBDIR, UPLOAD_SUBDIR)
+}
+
+pub fn zfs_upload_frags_digest_key(key: &str) -> String {
+    format!("zfs/{}/{}/{}/{}", FRAGS_SUBDIR, UPLOAD_SUBDIR, key, ZFS_DIGEST)
+}
 pub fn zfs_download_frags_dir() -> String {
     format!("{}/{}/{}", zfs_home(), FRAGS_SUBDIR, DOWNLOAD_SUBDIR)
 }
 
 pub fn zfs_download_frags_dir_for_key(k: &str) -> String {
-    k.chars()
-        .next()
-        .map(|c| {
-            if c == '/' {
-                format!("{}{}", zfs_download_frags_dir(), k)
-            } else {
-                format!("{}/{}", zfs_download_frags_dir(), k)
-            }
-        })
-        .unwrap()
+    format!("{}/{}", zfs_download_frags_dir(), k)
+
+    // k.chars()
+    //     .next()
+    //     .map(|c| {
+    //         if c == '/' {
+    //             format!("{}{}", zfs_download_frags_dir(), k)
+    //         } else {
+    //             format!("{}/{}", zfs_download_frags_dir(), k)
+    //         }
+    //     })
+    //     .unwrap()
 }
 
 pub fn zfs_upload_frags_dir_for_key(k: &str) -> String {
-    k.chars()
-        .next()
-        .map(|c| {
-            if c == '/' {
-                format!("{}{}", zfs_upload_frags_dir(), k)
-            } else {
-                format!("{}/{}", zfs_upload_frags_dir(), k)
-            }
-        })
-        .unwrap()
+    // Key expression have never begins with a "/"
+    format!("{}/{}", zfs_upload_frags_dir(), k)
+    // k.chars()
+    //     .next()
+    //     .map(|c| {
+    //         if c == '/' {
+    //             format!("{}{}", zfs_upload_frags_dir(), k)
+    //         } else {
+    //             format!("{}/{}", zfs_upload_frags_dir(), k)
+    //         }
+    //     })
+    //     .unwrap()
 }
 
 pub fn zfs_upload_frag_dir_to_key(path: &str) -> Option<String> {
     path.strip_prefix(&zfs_upload_frags_dir())
-        .map(|s| s.to_string())
+        .map(|s| s[1..].to_string()) // skip the initial "/"
 }
 
 pub async fn zfs_read_download_digest_from(
     path: &std::path::Path,
 ) -> Result<DownloadDigest, String> {
-    async_std::fs::read(path)
+    tokio::fs::read(path)
         .await
         .map_err(zfs_err2str)
         .and_then(|bs| serde_json::from_slice::<crate::DownloadDigest>(&bs).map_err(zfs_err2str))

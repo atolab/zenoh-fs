@@ -3,7 +3,7 @@ use zfs::{zfs_upload_digest_dir, UploadDigest};
 
 fn write_upload_digest(digest: UploadDigest) -> std::io::Result<()> {
     let uid = uuid::Uuid::new_v4();
-    let fname = format!("{}/{}", zfs_upload_digest_dir(), uid.to_string());
+    let fname = format!("{}/{}", zfs_upload_digest_dir(), uid);
     if let Ok(bs) = serde_json::to_vec(&digest) {
         std::fs::write(&fname, &bs)?;
     }
