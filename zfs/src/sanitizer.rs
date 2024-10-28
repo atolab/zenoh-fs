@@ -86,7 +86,7 @@ pub async fn download_sanitizer(z: Arc<zenoh::Session>) {
                                     .await
                                     .unwrap();
                             } else {
-                                log::debug!("Found <<GAPS>> for {:?}", &reg_entry.digest);
+                                log::info!("Found <<GAPS>> for {:?},  repairing", &reg_entry.digest);
                                 gaps.sort_unstable();
                                 let new_gap_num = gaps.len();
                                 let filtered_gaps: Vec<usize> = gaps
@@ -104,7 +104,7 @@ pub async fn download_sanitizer(z: Arc<zenoh::Session>) {
                                 } else {
                                     reg_entry.stuck_cycles += 1;
                                     if reg_entry.stuck_cycles % STUCK_CYCLES_RESET == 0 {
-                                        log::debug!(
+                                        log::info!(
                                             "Gaps recovery for {:?} seems to have stalled, this may be due to process restart of disconnections. Restarting fragment sanitiser.",
                                             &reg_entry.digest.key);
                                         reg_entry.tide_level = 0;
@@ -125,7 +125,7 @@ pub async fn download_sanitizer(z: Arc<zenoh::Session>) {
                                         }
                                     } else {
                                         reg_entry.stuck_cycles += 1;
-                                        log::debug!(
+                                        log::info!(
                                             "Gaps recovery for {:?} is unusually slow -- no progress for the past {} sanitiser cycles",
                                             &reg_entry.digest.key, reg_entry.stuck_cycles
                                         );
@@ -133,15 +133,14 @@ pub async fn download_sanitizer(z: Arc<zenoh::Session>) {
                                 }
                             }
                         } else {
-                            log::debug!("Unable to compute gap for {:?}, the fragmentation manifest may be missing...", entry);
+                            log::info!("Unable to compute gap for {:?}, the fragmentation manifest may be missing...", entry);
                         }
                     }
                     None => {
-                        log::info!(target: "sanitizer", "Download Digest for key: {:?}", &entry.path().as_path());
                         let digest = zfs_read_download_digest_from(entry.path().as_path())
                             .await
                             .unwrap();
-                        log::info!(target: "sanitizer", "Download Digest: {:?}", &digest);
+                        log::debug!(target: "sanitizer", "Download Digest: {:?}", &digest);
                         let mut gaps: Vec<usize> = compute_download_gaps(z.clone(), &digest)
                             .await
                             .unwrap()
@@ -165,7 +164,7 @@ pub async fn download_sanitizer(z: Arc<zenoh::Session>) {
                             );
                             registry.insert(entry.path().to_str().unwrap().into(), sre);
                         } else {
-                            log::debug!("Sanitizer cleaning up download {:?}", &digest);
+                            log::info!("Sanitizer completed downloading for {:?} -- cleaning up.", &digest.key);
                             cleanup_download(&digest, entry.path().to_str().unwrap())
                                 .await
                                 .unwrap();

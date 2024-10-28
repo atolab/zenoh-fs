@@ -17,8 +17,13 @@ fn init() -> Result<()> {
 
 #[tokio::main]
 async fn main() {
-    println!("Starting zfsd...");
-    env_logger::init();
+    env_logger::builder()
+        .filter_level(log::LevelFilter::Info)
+        .format_target(true)
+        .format_timestamp_secs()
+        .init();
+
+    log::info!(target: "zfsd", "Starting up...");
     let zconf = parse_args();
 
     let z = std::sync::Arc::new(zenoh::open(zconf).await.unwrap());
@@ -48,7 +53,7 @@ async fn main() {
     while let Ok(r) = rx.recv() {
         if let Ok(evt) = r {
             if evt.kind.is_create() && evt.paths[0].is_file() {
-                log::info!(target: "zfsd", "Received Create Event {:?}", &evt);
+                log::debug!(target: "zfsd", "Received Create Event {:?}", &evt);
                 let path = evt.paths[0].clone();
                 let parent = path.parent().unwrap();
 
@@ -79,7 +84,7 @@ async fn main() {
                                 match zfsd_upload_frag_dir_to_key(fpath) {
                                     Some(key_suffix) => {
                                         let key = zfs_key(&key_suffix);
-                                        log::debug!(target: "zfsd", "Uploading fragment : {:?} as {:?}", path, &key);
+                                        log::debug  !(target: "zfsd", "Uploading fragment : {:?} as {:?}", path, &key);
                                         upload_fragment(&z, fpath, &key).await;
                                     }
                                     None => {
@@ -94,7 +99,7 @@ async fn main() {
                     }
                 }
             } else {
-                log::info!(target: "zfsd", "Ignoring create event for directory {:?}", &evt);
+                log::debug!(target: "zfsd", "Ignoring create event for directory {:?}", &evt);
             }
         }
     }
