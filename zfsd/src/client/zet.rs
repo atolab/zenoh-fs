@@ -1,9 +1,9 @@
 use clap::{App, Arg};
-use zfs::{zfs_download_digest_dir, DownloadDigest};
+use zfs::{zfsd_download_digest_dir, DownloadDigest};
 
 fn write_download_digest(digest: DownloadDigest) -> std::io::Result<()> {
     let uid = uuid::Uuid::new_v4();
-    let fname = format!("{}/{}", zfs_download_digest_dir(), uid);
+    let fname = format!("{}/{}", zfsd_download_digest_dir(), uid);
     if let Ok(bs) = serde_json::to_vec(&digest) {
         std::fs::write(&fname, &bs)?;
     } else {

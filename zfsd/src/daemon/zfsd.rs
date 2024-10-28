@@ -8,10 +8,10 @@ use zfs::*;
 use zenoh::config::WhatAmI;
 
 fn init() -> Result<()> {
-    create_dir_all(zfs_upload_frags_dir())
-        .and(create_dir_all(zfs_download_frags_dir()))
-        .and(create_dir_all(zfs_upload_digest_dir()))
-        .and(create_dir_all(zfs_download_digest_dir()))
+    create_dir_all(zfsd_upload_frags_dir())
+        .and(create_dir_all(zfsd_download_frags_dir()))
+        .and(create_dir_all(zfsd_upload_digest_dir()))
+        .and(create_dir_all(zfsd_download_digest_dir()))
         .map_err(|e| notify::Error::generic(&format!("{:?}", e)))
 }
 
@@ -28,46 +28,34 @@ async fn main() {
 
     watcher
         .watch(
-            std::path::Path::new(&zfs_download_digest_dir()),
+            std::path::Path::new(&zfsd_download_digest_dir()),
             RecursiveMode::NonRecursive)
         .unwrap();
     watcher
         .watch(
-            std::path::Path::new(&zfs_upload_digest_dir()),
+            std::path::Path::new(&zfsd_upload_digest_dir()),
             RecursiveMode::NonRecursive)
         .unwrap();
     watcher
         .watch(
-            std::path::Path::new(&zfs_upload_frags_dir()),
+            std::path::Path::new(&zfsd_upload_frags_dir()),
             RecursiveMode::Recursive)
         .unwrap();
 
     tokio::task::spawn(download_sanitizer(z.clone()));
 
-    println!("zfsd is up an running.");
+    log::info!(target:"zfsd", "Up and Running!");
     while let Ok(r) = rx.recv() {
-        // log::info!(target: "zfsd", "Downloading {:?}", &path);
-
         if let Ok(evt) = r {
-            if evt.kind.is_create() && evt.paths[0].is_dir() {
-                log::info!(target: "zfsd", "Received Create Event {:?}", &evt);
-                log::info!(target: "zfsd", "Ignoring as it is a directory {:?}", &evt);
-            }
-            else if evt.kind.is_create() && evt.paths[0].is_file() {
+            if evt.kind.is_create() && evt.paths[0].is_file() {
                 log::info!(target: "zfsd", "Received Create Event {:?}", &evt);
                 let path = evt.paths[0].clone();
                 let parent = path.parent().unwrap();
-                log::info!(target: "zfsd", "Parent is {:?}", parent);
-
 
                 if parent.ends_with(DOWNLOAD_SUBDIR) {
                     log::info!(target: "zfsd", "Downloading {:?}", &path);
-                    // Note: The only reason for not spawning an async task is that the
-                    // indicatif crate does not work properly show progress when using multibar
-                    // along with async tasks.
-
                     tokio::task::spawn(
-                        zfs::download(z.clone(), path.clone() /*, sty */).or_else(
+                        zfs::download(z.clone(), path.clone()).or_else(
                             |e| async move {
                                 log::warn!("Failed to download due to: {}", e);
                                 Ok::<(), String>(())
@@ -83,19 +71,16 @@ async fn main() {
                             Ok::<(), String>(())
                         },
                     ));
-                    log::info!(target: "zfsd", "Fragmenting and uploading {:?}", path.as_path());
                 } else {
                     let fpath = path.to_str().unwrap();
                     if !fpath.contains(DOWNLOAD_SUBDIR) {
                         match fpath.find(FRAGS_SUBDIR) {
                             Some(_) => {
-                                log::debug!(target: "zfsd", "Handling path: {}", fpath);
-                                match zfs_upload_frag_dir_to_key(fpath) {
+                                match zfsd_upload_frag_dir_to_key(fpath) {
                                     Some(key_suffix) => {
-                                        let key = format!("{}/{}", zfs_upload_frags_key_prefix(), key_suffix);
+                                        let key = zfs_key(&key_suffix);
                                         log::debug!(target: "zfsd", "Uploading fragment : {:?} as {:?}", path, &key);
                                         upload_fragment(&z, fpath, &key).await;
-                                        log::debug!(target: "zfsd", "Completed  upload of: {:?} as {:?}", path, &key);
                                     }
                                     None => {
                                         log::warn!(target: "zfsd", "Unable to extract key from {}", fpath);
@@ -108,6 +93,8 @@ async fn main() {
                         }
                     }
                 }
+            } else {
+                log::info!(target: "zfsd", "Ignoring create event for directory {:?}", &evt);
             }
         }
     }
