@@ -38,13 +38,11 @@ Once installed ```rust``` then do:
 ### Starting zfsd
 Assuming you have compiled from sources  then simply do:
 
-    zenoh-fs$ export ZFS_HOME=$HOME/.zenoh/zenoh_backend_fs/zfs
     zenoh-fs$ ./target/release/zfsd  
 
 ### Uploading a file 
 To upload a file use the `zut` utility as follows:
-
-    zenoh-fs$ export ZFS_HOME=$HOME/.zenoh/zenoh_backend_fs/zfs
+ 
     zenoh-fs$ ./target/release/zut -k test/zut -p ./target/release/zut
 
 This command is uploading the file `./target/release/zut` into the `zfsd`. 
@@ -52,7 +50,6 @@ This command is uploading the file `./target/release/zut` into the `zfsd`.
 ### Downloading a file
 To download a file use the `zet` utility as follows:
 
-    zenoh-fs$ export ZFS_HOME=$HOME/.zenoh/zenoh_backend_fs/zfs
     zenoh-fs$ ./target/release/zet -k test/zut -p ./zut2
 
 This command will provision the download of `test/zut` and will de-fragment and save it as

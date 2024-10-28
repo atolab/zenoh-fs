@@ -20,8 +20,9 @@ pub async fn upload_fragment(z: &Session, path: &str, key: &str) {
 pub async fn download_fragment(z: Arc<Session>, key: String, n: u32) -> Result<(), String> {
     log::info!(target: "transfer", "Downloading fragment # {} for key {}", n, &key);
 
-    let path = zfs_download_frags_dir_for_key(&key);
-    let frag_key = format!("{}/{}/{}", zfs_upload_frags_key_prefix(), key, n);
+    let path = zfsd_download_frags_dir_for_key(&key);
+    // let frag_key = format!("{}/{}/{}", zfs_upload_frags_key_prefix(), key, n);
+    let frag_key = zfs_nth_frag_key(&key, n);
     let frag = format!("{}/{}", &path, n);
     if Path::new(&frag).exists() {
         log::debug!(
@@ -96,11 +97,12 @@ pub async fn download(
         return Ok(());
     }
 
-    let frag_digest = format!("{}/{}/{}", zfs_upload_frags_key_prefix(), download_spec.key, ZFS_DIGEST);
+    // let frag_digest = format!("{}/{}/{}", zfs_upload_frags_key_prefix(), download_spec.key, ZFS_DIGEST);
+    let frag_digest= zfs_frags_digest_for_key(&download_spec.key);
     log::info!(target: "tranfer", "Get Frag Digest: {}", &frag_digest);
     let digest = download_fragmentation_digest(z.clone(), &frag_digest).await?;
 
-    let frags_dir = zfs_download_frags_dir_for_key(&download_spec.key);
+    let frags_dir = zfsd_download_frags_dir_for_key(&download_spec.key);
     tokio::fs::create_dir_all(std::path::Path::new(&frags_dir))
         .await
         .unwrap();

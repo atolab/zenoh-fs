@@ -6,7 +6,7 @@ use zenoh::Session;
 async fn cleanup_download(digest: &DownloadDigest, download_manifest: &str) -> Result<(), String> {
     // Check first if the file has been really created
     let target = std::path::Path::new(&digest.path);
-    let frags_path = zfs_download_frags_dir_for_key(&digest.key);
+    let frags_path = zfsd_download_frags_dir_for_key(&digest.key);
     let fmanif_exists = std::path::Path::new(&format!("{}/{}", &frags_path, ZFS_DIGEST)).exists();
     if target.exists() && fmanif_exists {
         let defrag_digest = read_defrag_digest(&frags_path).await.unwrap();
@@ -14,7 +14,7 @@ async fn cleanup_download(digest: &DownloadDigest, download_manifest: &str) -> R
 
         tokio::time::sleep(Duration::from_secs(2 * FS_EVT_DELAY)).await;
         if size == defrag_digest.size {
-            let frags_path = zfs_download_frags_dir_for_key(&digest.key);
+            let frags_path = zfsd_download_frags_dir_for_key(&digest.key);
             let _ignore = std::fs::remove_dir_all(&frags_path);
             let _ignore = std::fs::remove_file(std::path::Path::new(download_manifest));
         } else {
@@ -31,8 +31,8 @@ async fn cleanup_download(digest: &DownloadDigest, download_manifest: &str) -> R
 }
 
 async fn compute_download_gaps(z: std::sync::Arc<Session>, digest: &DownloadDigest) -> Result<BTreeSet<usize>, String> {
-    let frags_path = zfs_download_frags_dir_for_key(&digest.key);
-    let frag_digest_key = zfs_upload_frags_digest_key(&digest.key);
+    let frags_path = zfsd_download_frags_dir_for_key(&digest.key);
+    let frag_digest_key = zfs_frags_digest_for_key(&digest.key);
     if let Ok(defrag_digest) = download_fragmentation_digest(z, &frag_digest_key).await {
         let mut frag_set = BTreeSet::new();
         for i in 0..defrag_digest.fragments {
@@ -58,58 +58,6 @@ async fn compute_download_gaps(z: std::sync::Arc<Session>, digest: &DownloadDige
     }
 }
 
-// async fn get_defrag_fragment(z: Arc<zenoh::Session>, key: &str) -> Result<FragmentationDigest, String> {
-//     let replies = z.get(&key)
-//         .target(QueryTarget::DEFAULT)
-//         .await
-//         .unwrap();
-//     if let Ok(reply) = replies.recv_async().await {
-//         if let Ok(r) = reply.result() {
-//             let bs = r.payload().to_bytes();
-//             let digest = serde_json::from_slice::<FragmentationDigest>(&bs).unwrap();
-//             Ok(digest)
-//         } else {
-//             Err("Unable to retriefe manifest".to_string())
-//         }
-//     } else {
-//         Err("Unable to retriefe manifest".to_string())
-//     }
-// }
-// async fn compute_download_gaps2(z: Arc<zenoh::Session>, digest: &DownloadDigest) -> Result<BTreeSet<usize>, String> {
-//     let frag_digest_key = zfs_upload_frags_digest_key(&digest.key);
-//
-// // let frags_path = zfs_download_frags_dir_for_key(&digest.key);
-//     // if let Ok(defrag_digest) = read_defrag_digest(&frags_path).await {
-//     //     let fmanif_exists =
-//     //         std::path::Path::new(&format!("{}/{}", &frags_path, ZFS_DIGEST)).exists();
-//     //     if !fmanif_exists {
-//     //         return Err("There is no manifest, this gaps cannot be computed".to_string());
-//     //     }
-//     //     let mut frag_set = BTreeSet::new();
-//     //     for i in 0..defrag_digest.fragments {
-//     //         frag_set.insert(i as usize);
-//     //     }
-//     //     let path = std::path::Path::new(&frags_path);
-//     //     if let Ok(entries) = path.read_dir() {
-//     //         for entry in entries.flatten() {
-//     //             let name = entry
-//     //                 .path()
-//     //                 .file_name()
-//     //                 .and_then(|s| s.to_str())
-//     //                 .unwrap()
-//     //                 .to_string();
-//     //             if let Ok(n) = name.parse() {
-//     //                 frag_set.remove(&n);
-//     //             }
-//     //         }
-//     //     }
-//     //     Ok(frag_set)
-//     // } else {
-//     //     Err(format!("Unable to read defrag digest for {:?}", &digest))
-//     // }
-//     Err(format!("Unable to read defrag digest for {:?}", &digest))
-// }
-
 fn compute_acceleration_factor(stuck_cycles: usize) -> usize {
     let r = (stuck_cycles / STUCK_CYCLES_RESET) + 1;
     let a = std::cmp::max(1, r / 2);
@@ -119,7 +67,7 @@ fn compute_acceleration_factor(stuck_cycles: usize) -> usize {
 }
 pub async fn download_sanitizer(z: Arc<zenoh::Session>) {
     let mut registry = HashMap::<String, SanitizerRegistryEntry>::new();
-    let d3 = zfs_download_digest_dir();
+    let d3 = zfsd_download_digest_dir();
     let dpath = std::path::Path::new(&d3);
     loop {
         tokio::time::sleep(SANITIZER_PERIOD).await;
@@ -153,10 +101,6 @@ pub async fn download_sanitizer(z: Arc<zenoh::Session>) {
                                     log::debug!("Udating tide and gaps");
                                     reg_entry.tide_level = *filtered_gaps.first().unwrap_or(&0);
                                     reg_entry.gap_nun = new_gap_num;
-                                    // registry.insert(
-                                    //     entry.path().to_str().unwrap().into(),
-                                    //     reg_entry.clone(),
-                                    // );
                                 } else {
                                     reg_entry.stuck_cycles += 1;
                                     if reg_entry.stuck_cycles % STUCK_CYCLES_RESET == 0 {
@@ -237,6 +181,6 @@ pub async fn download_sanitizer(z: Arc<zenoh::Session>) {
 pub async fn upload_sanitizer() {
     loop {
         tokio::time::sleep(Duration::from_secs(5)).await;
-        // async_std::fs::read_dir()
+        // TODO: Implement Upload Sanitizer
     }
 }

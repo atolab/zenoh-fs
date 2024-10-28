@@ -19,7 +19,7 @@ pub async fn fragment(
             let mut bs = vec![0_u8; fragment_size];
             log::debug!("bs.len() = {}", bs.len());
             let mut fid = 0;
-            let frag_path = zfs_upload_frags_dir_for_key(zkey);
+            let frag_path = zfsd_upload_frags_dir_for_key(zkey);
             log::debug!("Target dir: {:?}", frag_path);
             create_dir_all(Path::new(&frag_path)).await.unwrap();
             loop {
@@ -112,7 +112,7 @@ pub async fn write_defrag_digest(
     Ok(())
 }
 pub async fn defragment(key: &str, dest: &str) -> Result<bool, String> {
-    let fragments_path = zfs_download_frags_dir_for_key(key);
+    let fragments_path = zfsd_download_frags_dir_for_key(key);
 
     match read_defrag_digest(&fragments_path).await {
         Ok(digest) => {
